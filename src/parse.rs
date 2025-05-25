@@ -589,6 +589,7 @@ impl Parser<'_> {
                     chars.extend(Primitive::non_deprecated().filter_map(|p| p.glyph()));
                     chars.extend(' '..='~');
                     chars.extend(SUBSCRIPT_DIGITS);
+                    chars.extend(SUPERSCRIPT_DIGITS);
                     chars.extend("←↚‼₋⌞⌟↓".chars());
                     chars.sort_unstable();
                     chars
@@ -1257,6 +1258,12 @@ impl Parser<'_> {
             if let Some(n) = self.next_token_map(Token::as_subscript) {
                 let span = word.span.clone().merge(n.span.clone());
                 word = span.sp(Word::Subscripted(Box::new(crate::ast::Subscripted {
+                    script: n,
+                    word,
+                })));
+            } else if let Some(n) = self.next_token_map(Token::as_superscript) {
+                let span = word.span.clone().merge(n.span.clone());
+                word = span.sp(Word::Superscripted(Box::new(crate::ast::Superscripted {
                     script: n,
                     word,
                 })));

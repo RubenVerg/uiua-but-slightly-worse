@@ -1516,6 +1516,17 @@ impl Compiler {
             }
             Word::OutputComment { i, n } => Node::SetOutputComment { i, n },
             Word::Subscripted(sub) => self.subscript(*sub, word.span)?,
+            Word::Superscripted(sup) => {
+                if let Some(NumericSuperscript::N(n)) = sup.script.value.num {
+                    Node::from_iter([Node::new_push(n), self.word(sup.word)?])
+                } else {
+                    self.add_error(
+                        sup.script.span.clone(),
+                        format!("Wrong superscript?"),
+                    );
+                    self.word(sup.word)?
+                }
+            }
             Word::Comment(_) | Word::Spaces | Word::BreakLine | Word::FlipLine => Node::empty(),
             Word::InlineMacro(_) => {
                 self.add_error(

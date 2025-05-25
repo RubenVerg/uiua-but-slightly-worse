@@ -15,12 +15,15 @@ use serde_tuple::*;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    ast::{NumericSubscript, SidedSubscript, SubSide, Subscript},
+    ast::{NumericSubscript, NumericSuperscript, SidedSubscript, SubSide, Subscript, Superscript},
     split_name, Ident, Inputs, PrimComponent, Primitive, WILDCARD_CHAR,
 };
 
 /// Subscript digit characters
 pub const SUBSCRIPT_DIGITS: [char; 10] = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
+
+/// Superscript digit characters
+pub const SUPERSCRIPT_DIGITS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
 /// Lex a Uiua source file
 pub fn lex(
@@ -607,6 +610,7 @@ pub enum Token {
     Glyph(Primitive),
     Placeholder(usize),
     Subscr(Subscript),
+    Superscr(Superscript),
     LeftArrow,
     LeftStrokeArrow,
     LeftArrowTilde,
@@ -686,6 +690,12 @@ impl Token {
             _ => None,
         }
     }
+    pub(crate) fn as_superscript(&self) -> Option<Superscript> {
+        match self {
+            Token::Superscr(n) => Some(*n),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Token {
@@ -731,6 +741,7 @@ impl fmt::Display for Token {
             Token::Newline => write!(f, "newline"),
             Token::Spaces => write!(f, "space(s)"),
             Token::Subscr(sub) => sub.fmt(f),
+            Token::Superscr(sup) => sup.fmt(f),
             Token::OpenModule => write!(f, "┌─╴"),
             Token::CloseModule => write!(f, "└─╴"),
             Token::Placeholder(i) => write!(f, "^{i}"),
@@ -1042,6 +1053,10 @@ impl<'a> Lexer<'a> {
                     let sub = self.subscript("'");
                     self.end(Subscr(sub), start)
                 }
+                "^" if self.next_char_exact("^") => {
+                    let sup = self.superscript("^^");
+                    self.end(Superscr(sup), start)
+                }
                 "|" if self.next_char_exact(",") => self.end(DownArrow, start),
                 "|" => self.end(Bar, start),
                 "↓" => self.end(DownArrow, start),
@@ -1238,6 +1253,10 @@ impl<'a> Lexer<'a> {
                 c if "₋⌞⌟".contains(c) || c.chars().all(|c| SUBSCRIPT_DIGITS.contains(&c)) => {
                     let sub = self.subscript(c);
                     self.end(Subscr(sub), start)
+                }
+                c if c.chars().all(|c| SUPERSCRIPT_DIGITS.contains(&c)) => {
+                    let sup = self.superscript(c);
+                    self.end(Superscr(sup), start)
                 }
                 // Identifiers and unformatted glyphs
                 c if is_custom_glyph(c) || c.chars().all(is_ident_char) || "&!‼".contains(c) => {
@@ -1504,6 +1523,59 @@ impl<'a> Lexer<'a> {
                 side,
                 n: side_num.map(|n| n as usize),
             }),
+        }
+    }
+    fn superscript(&mut self, init: &str) -> Superscript {
+        let mut can_parse_ascii = false;
+        let mut too_large = false;
+        let mut num = None;
+        match init {
+            "^^" => can_parse_ascii = true,
+            c if c.chars().all(|c| SUPERSCRIPT_DIGITS.contains(&c)) => {
+                num = SUPERSCRIPT_DIGITS
+                    .iter()
+                    .position(|&d| d == c.chars().next().unwrap())
+                    .map(|i| i as i32);
+            }
+            _ => {}
+        }
+        loop {
+            if let Some(c) = can_parse_ascii
+                .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
+                .flatten()
+            {
+                let num = num.get_or_insert(0);
+                let (new_num, overflow) = num.overflowing_mul(10);
+                too_large |= overflow;
+                let (new_num, overflow) = new_num.overflowing_add(c.parse::<i32>().unwrap());
+                too_large |= overflow;
+                *num = new_num;
+            } else if let Some(c) = self.next_char_if_all(|c| SUPERSCRIPT_DIGITS.contains(&c)) {
+                let i = SUPERSCRIPT_DIGITS
+                    .iter()
+                    .position(|&d| d == c.chars().next().unwrap())
+                    .unwrap() as i32;
+                let num = num.get_or_insert(0);
+                let (new_num, overflow) = num.overflowing_mul(10);
+                too_large |= overflow;
+                let (new_num, overflow) = new_num.overflowing_add(i);
+                too_large |= overflow;
+                *num = new_num;
+                can_parse_ascii = false;
+            } else if self.next_char_exact("^") {
+                can_parse_ascii = true;
+            } else {
+                break;
+            }
+        }
+        Superscript {
+            num: if too_large {
+                Some(NumericSuperscript::TooLarge)
+            } else if let Some(n) = num {
+                Some(NumericSuperscript::N(n))
+            } else {
+                None
+            }
         }
     }
     fn character(

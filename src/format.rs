@@ -21,7 +21,7 @@ use crate::{
     lex::{CodeSpan, Loc, Sp},
     parse::{flip_unsplit_items, flip_unsplit_lines, parse, split_words, trim_spaces},
     Compiler, Handle, Ident, InputSrc, Inputs, PreEvalMode, Primitive, RunMode, SafeSys, Signature,
-    SysBackend, Uiua, UiuaErrorKind, UiuaResult, Value, SUBSCRIPT_DIGITS,
+    SysBackend, Uiua, UiuaErrorKind, UiuaResult, Value, SUBSCRIPT_DIGITS, SUPERSCRIPT_DIGITS,
 };
 
 trait ConfigValue: Sized {
@@ -1093,6 +1093,13 @@ impl Formatter<'_> {
                     self.subscript(&sub.script);
                 }
             },
+            Word::Superscripted(sup) => {
+                self.format_word(&sup.word, depth);
+                if self.output.ends_with(SUPERSCRIPT_DIGITS) {
+                    self.output.push(' ');
+                }
+                self.push(&sup.script.span, &sup.script.value.to_string());
+            }
             Word::Spaces => self.push(&word.span, " "),
             Word::Comment(comment) => {
                 let beginning_of_line = self
@@ -1634,6 +1641,7 @@ pub(crate) fn word_is_multiline(word: &Word) -> bool {
         }
         Word::Placeholder(_) => false,
         Word::Subscripted(sub) => word_is_multiline(&sub.word.value),
+        Word::Superscripted(sup) => word_is_multiline(&sup.word.value),
         Word::Comment(_) => true,
         Word::Spaces => false,
         Word::BreakLine => true,
