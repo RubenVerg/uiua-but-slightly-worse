@@ -10,9 +10,7 @@ use crate::{
     UiuaResult,
 };
 
-#[cfg(feature = "opt")]
-use super::loops::flip;
-use super::{multi_output, reduce::reduce_impl, validate_size};
+use super::{loops::flip, multi_output, reduce::reduce_impl, validate_size};
 
 pub fn table(ops: Ops, env: &mut Uiua) -> UiuaResult {
     let [f] = get_ops(ops, env)?;
@@ -242,7 +240,6 @@ pub fn table_list(f: SigNode, xs: Value, ys: Value, env: &mut Uiua) -> UiuaResul
                 atan2::num_num,
                 env,
             )?),
-            #[cfg(feature = "opt")]
             Primitive::Complex if flipped => {
                 env.push(fast_table_list(xs, ys, flip(complex::byte_byte), env)?)
             }

@@ -23,6 +23,7 @@ use crate::{
 
 mod dyadic;
 pub mod encode;
+pub mod ga;
 pub mod groups;
 pub mod loops;
 pub mod map;
@@ -142,10 +143,10 @@ pub(crate) fn validate_size_impl(
         }
         elements *= size as f64;
     }
-    let size = elements * elem_size as f64;
-    if size > u32::MAX as f64 {
+    if elements > u32::MAX as f64 {
         return Err(SizeError(elements));
     }
+    let size = elements * elem_size as f64;
 
     thread_local! {
         static MAX_MB: RefCell<Option<f64>> = const { RefCell::new(None) };
