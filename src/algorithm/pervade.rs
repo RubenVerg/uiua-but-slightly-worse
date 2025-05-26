@@ -1219,6 +1219,8 @@ cmp_impl!(other_is_gt == Ordering::Greater);
 cmp_impl!(other_is_ge != Ordering::Less);
 
 pub mod add {
+    use crate::{Lambda, SigNode};
+
     use super::*;
     pub fn num_num(a: f64, b: f64) -> f64 {
         b + a
@@ -1254,6 +1256,19 @@ pub mod add {
     }
     pub fn char_byte(a: char, b: u8) -> char {
         char::from_u32((b as i64 + a as i64) as u32).unwrap_or('\0')
+    }
+    pub fn lambda_lambda(a: Lambda, b: Lambda) -> Lambda {
+        let repr = format!("({}{})", a.repr, b.repr).into();
+        let mut node = b.sn.node;
+        node.push(a.sn.node);
+        let sig = a.sn.sig.compose(b.sn.sig);
+        Lambda { sn: SigNode::new(sig, node), repr }
+    }
+    pub fn lambda_x(a: Lambda, b: impl Into<Value>) -> Lambda {
+        lambda_lambda(a, Lambda::noad(b.into()))
+    }
+    pub fn x_lambda(a: impl Into<Value>, b: Lambda) -> Lambda {
+        lambda_lambda(Lambda::noad(a.into()), b)
     }
     pub fn error<T: Display>(a: T, b: T, env: &Uiua) -> UiuaError {
         env.error(format!("Cannot add {a} and {b}"))

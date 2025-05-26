@@ -1428,7 +1428,7 @@ primitive!(
     /// Because the length of the stack must be known at compile time, arguments are taken in a boxed array and results are returned in a box array.
     /// The first argument is the arguments to the lambda and the second argument is the lambda itself.
     /// ex: ⋌{3 2}⋋+
-    (2, Invoke, Misc, ("invoke", '⋌'), Mutating),
+    (2, Invoke, Misc, ("call", '⋌'), Mutating),
     /// Apply a reducing function to an array
     ///
     /// For reducing with an initial value, see [fold].

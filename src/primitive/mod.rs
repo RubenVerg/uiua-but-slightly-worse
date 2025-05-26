@@ -27,16 +27,7 @@ use rand::prelude::*;
 use serde::*;
 
 use crate::{
-    algorithm::{self, ga::GaOp, loops, reduce, table, zip, *},
-    array::Array,
-    ast::{NumericSubscript, SubSide, Subscript},
-    boxed::Boxed,
-    grid_fmt::GridFmt,
-    lex::{AsciiToken, SUBSCRIPT_DIGITS},
-    media,
-    sys::*,
-    value::*,
-    FunctionId, Ops, Purity, Shape, Signature, Uiua, UiuaErrorKind, UiuaResult,
+    algorithm::{self, ga::GaOp, loops, reduce, table, zip, *}, array::Array, ast::{NumericSubscript, SubSide, Subscript}, boxed::Boxed, grid_fmt::GridFmt, lex::{AsciiToken, SUBSCRIPT_DIGITS}, media, sys::*, value::*, FunctionId, Ops, Purity, Shape, Signature, Uiua, UiuaErrorKind, UiuaResult
 };
 
 /// Categories of primitives
@@ -810,6 +801,33 @@ impl Primitive {
             Primitive::ExeExt => env.push(std::env::consts::EXE_EXTENSION),
             Primitive::PathSep => env.push(std::path::MAIN_SEPARATOR),
             Primitive::NumProcs => env.push(num_cpus::get()),
+            Primitive::Invoke => {
+                let args = env.pop("args")?;
+                let lambda = env.pop("lambda")?;
+                let res = match lambda {
+                    Value::Lambda(arr) => match arr.rank() {
+                        0 => {
+                            let sn = arr.data[0].sn.clone();
+                            let sig = sn.sig;
+                            if sig.args() != args.row_count() {
+                                return Err(env.error(format!("Invoke got a lambda with arity {}, but {} arguments.", sn.sig.args(), args.row_count())))
+                            }
+                            for arg in args.into_rows().rev() {
+                                env.push(arg.unboxed())
+                            }
+                            env.exec(sn)?;
+                            let mut buf = EcoVec::with_capacity(sig.outputs());
+                            for _ in 0..sig.outputs() {
+                                buf.push(Boxed(env.pop(1)?));
+                            }
+                            buf.into()
+                        }
+                        rk => return Err(env.error(format!("Invoke expected scalar lambda, got array of type {}.", rk)))
+                    },
+                    val => Value::from(Boxed(val)).join(args, false, env)?
+                };
+                env.push(res);
+            }
             Primitive::Sys(io) => io.run(env)?,
             prim => {
                 return Err(env.error(if prim.modifier_args().is_some() {

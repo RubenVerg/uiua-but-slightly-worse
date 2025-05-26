@@ -12,11 +12,7 @@ use ecow::EcoVec;
 use serde::*;
 
 use crate::{
-    algorithm::{pervade::*, ErrorContext, FillContext},
-    array::*,
-    cowslice::CowSlice,
-    grid_fmt::GridFmt,
-    Boxed, Complex, Shape, Lambda, Uiua, UiuaResult,
+    algorithm::{pervade::*, ErrorContext, FillContext}, array::*, cowslice::CowSlice, grid_fmt::GridFmt, Boxed, Complex, CustomInverse, Lambda, Node, Shape, Uiua, UiuaResult
 };
 
 /// A generic array value
@@ -1934,6 +1930,27 @@ impl Value {
                 *arr.shape.last_mut().unwrap() = last;
                 arr.into()
             }
+            Value::Lambda(mut lams) => {
+                for lam in lams.data.as_mut_slice() {
+                    let inv = lam.sn.node.un_inverse(&env.asm);
+                    lam.sn.sig = lam.sn.sig.inverse();
+                    match inv {
+                        Ok(n) => {
+                            lam.sn.node = n;
+                        }
+                        Err(e) => {
+                            let span = env.span_index();
+                            let cust = CustomInverse { 
+                                normal: Err(e),
+                                ..Default::default() 
+                            };
+                            lam.sn.node = Node::CustomInverse(cust.into(), span);
+                        }
+                    }
+                    lam.repr = format!("°{}", lam.repr).into();
+                }
+                lams.into()
+            }
             value => value.scalar_neg(env)?,
         };
         val.meta.or_sorted_flags_rev(sorted_flags);
@@ -2179,6 +2196,17 @@ value_dy_math_impl!(
         (Char, Num, char_num),
         (Byte, Char, byte_char),
         (Char, Byte, char_byte),
+        (Lambda, Lambda, lambda_lambda),
+        (Lambda, Byte, lambda_x),
+        (Lambda, Num, lambda_x),
+        (Lambda, Complex, lambda_x),
+        (Lambda, Char, lambda_x),
+        (Lambda, Box, lambda_x),
+        (Byte, Lambda, x_lambda),
+        (Num, Lambda, x_lambda),
+        (Complex, Lambda, x_lambda),
+        (Char, Lambda, x_lambda),
+        (Box, Lambda, x_lambda),
         [|meta| meta.flags.is_boolean(), Byte, bool_bool, true]
     ),
     maintain_both_sortedness
