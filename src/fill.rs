@@ -1,4 +1,4 @@
-use crate::{ast::SubSide, Array, Boxed, Complex, Uiua, Value};
+use crate::{ast::SubSide, Array, Boxed, Complex, Lambda, Uiua, Value};
 
 pub struct Fill<'a> {
     env: &'a Uiua,
@@ -159,6 +159,19 @@ impl<'a> Fill<'a> {
             _ => Err(self.error(false)),
         })
     }
+    pub(crate) fn lambda_scalar(&self) -> Result<FillValue<Lambda>, &'static str> {
+        self.value_map(|val| match val {
+            Value::Lambda(c) if c.rank() == 0 => Ok(c.data[0].to_owned()),
+            Value::Lambda(_) => Err(self.error(true)),
+            _ => Err(self.error(false)),
+        })
+    }
+    pub(crate) fn lambda_array(&self) -> Result<FillValue<Array<Lambda>>, &'static str> {
+        self.value_map(|val| match val {
+            Value::Lambda(c) => Ok(c.clone()),
+            _ => Err(self.error(false)),
+        })
+    }
     pub(crate) fn value_for(&self, val: &Value) -> Option<&FillValue> {
         let fill = &self.value()?;
         match (val, &fill.value) {
@@ -177,6 +190,7 @@ impl<'a> Fill<'a> {
                 Some(Value::Char(_)) => ". A character fill is set, but it is not a scalar.",
                 Some(Value::Complex(_)) => ". A complex fill is set, but it is not a scalar.",
                 Some(Value::Box(_)) => ". A box fill is set, but it is not a scalar.",
+                Some(Value::Lambda(_)) => ". A lambda fill is set, but it is not a scalar.",
                 None => {
                     if (self.other_value_fill)(self.env).is_some() {
                         self.other_error
@@ -196,6 +210,7 @@ impl<'a> Fill<'a> {
                     ". A complex fill is set, but the array is not complex numbers."
                 }
                 Some(Value::Box(_)) => ". A box fill is set, but the array is not boxed values.",
+                Some(Value::Lambda(_)) => ". A lambda fill is set, but the array is not lambdas.",
                 None => {
                     if (self.other_value_fill)(self.env).is_some() {
                         self.other_error

@@ -1,7 +1,7 @@
 # Uiua Todo
 
 # 0.17
-- Array pack sugar
+- Sided `backward`
 - `table` subscripts for rank selection
 - Mixed subscripts
   - `bracket`

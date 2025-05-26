@@ -1,7 +1,5 @@
 //! All primitive definitions
 
-use crate::Purity;
-
 use super::*;
 
 macro_rules! primitive {
@@ -1424,6 +1422,13 @@ primitive!(
     ///   : ⌝⊥[12 20 ∞] [11 1 3]
     ///   : ⌝⬚10⊥[12 20] [3 13 6 6 1 4]
     (2, Base, DyadicArray, ("base", '⊥')),
+    /// Invoke a lambda
+    /// 
+    /// After creating a [lambda], you can call it with [invoke].
+    /// Because the length of the stack must be known at compile time, arguments are taken in a boxed array and results are returned in a box array.
+    /// The first argument is the arguments to the lambda and the second argument is the lambda itself.
+    /// ex: ⋌{3 2}⋋+
+    (2, Invoke, Misc, ("invoke", '⋌'), Mutating),
     /// Apply a reducing function to an array
     ///
     /// For reducing with an initial value, see [fold].
@@ -2080,13 +2085,10 @@ primitive!(
     ([1], Below, Stack, ("below", '◡')),
     /// Call a function with the same array as all arguments
     ///
-    /// ex: # Experimental!
-    ///   : ˙+ 5
-    /// ex: # Experimental!
-    ///   : ˙⊞+ 1_2_3
-    /// ex: # Experimental!
-    ///   : ˙(⊂⊂) π
-    ([1], Slf, Stack, ("self", '˙'), { experimental: true }),
+    /// ex: ˙+ 5
+    /// ex: ˙⊞+ 1_2_3
+    /// ex: ˙(⊂⊂) π
+    ([1], Slf, Stack, ("self", '˙')),
     /// Call a function with its arguments reversed
     ///
     /// ex:  - 2 5
@@ -2494,6 +2496,10 @@ primitive!(
     ///   : ≡F [1 1 2 2 3 3]
     /// In general, this should only be used with functions that perform a potentially expensive calculation.
     ([1], Memo, OtherModifier, "memo"),
+    /// Wrap a function into a lambda
+    /// 
+    /// A lambda is a special value that can be put in an array and then invoked with [call]
+    (0[1], Lambda, OtherModifier, ("lambda", '⋋')),
     /// Run a function at compile time
     ///
     /// ex: F ← (⌊×10[⚂⚂⚂])
@@ -2967,6 +2973,37 @@ primitive!(
     ///   : ▽⟜≡▽0.5
     ///   : ⌵⍜°⍉≡fft .
     (1, Fft, Algorithm, "fft"),
+    /// Convert an operation to be in geometric algebra
+    ///
+    /// You can read more about [geometric] and its uses [here](/docs/experimental#geometric-algebra). This page only covers its use for complex numbers.
+    ///
+    /// [geometric] treats numeric arrays with a shape ending in `2` as an array of complex numbers. This is different than existing [complex] arrays, and this system would potentially replace that one.
+    /// We can see the basic complex identity by multiplying two arrays that represent `i`. [geometric] [multiply] forms the geometric product, which is equivalent to the complex product in this case.
+    /// ex: # Experimental!
+    ///   : ⩜× [0 1] [0 1]
+    /// [geometric] treats most operations as pervasive down to that last axis.
+    /// ex: # Experimental!
+    ///   : ⩜× [0 1] [1_2 3_4 5_6]
+    ///   : ⩜+ [0 1] [1_2 3_4 5_6]
+    /// [geometric] [sign] normalizes a complex number.
+    /// ex: # Experimental!
+    ///   : ⩜± [3_4 ¯2_0]
+    /// [geometric] [absolute value] gives the magnitude of a complex number.
+    /// ex: # Experimental!
+    ///   : ⩜⌵ [3_4 5_12]
+    /// [geometric] [divide] produces a complex number that, when [multiply]d, rotates the first complex number to the second.
+    /// ex: # Experimental!
+    ///   : ⩜÷ [0 1] [1 0]
+    /// ex: # Experimental!
+    ///   : ⩜(×÷) [0 1] [1 0] [2_3 4_5 6_7]
+    /// [geometric] [couple] creates a complex number array from real and imaginary parts.
+    /// ex: # Experimental!
+    ///   : ⩜⊟ 1_2 [3_4 5_6]
+    /// [geometric][un][parse] formats a complex array as complex numbers.
+    /// ex: # Experimental!
+    ///   : ⩜°⋕ 5_1
+    ///   : ⩜°⋕ [1_2 3_4]
+    ([1], Geometric, Algorithm, ("geometric", '⩜'), { experimental: true }),
     /// Find the shortest path between two things
     ///
     /// Expects 2 functions and at least 1 value.
@@ -3461,8 +3498,9 @@ macro_rules! impl_primitive {
             $($args:literal)?
             $(($outputs:expr))?
             $([$margs:expr])?,
-            $variant:ident $(($($inner:ident),* $(,)?))?
+            $variant:ident $(($($inner:ty),* $(,)?))?
             $(, $purity:ident)?
+            $(,{ga: $ga:literal})?
         )
     ),* $(,)?) => {
         /// Primitives that exist as an implementation detail
@@ -3493,6 +3531,7 @@ macro_rules! impl_primitive {
             MaxRowCount(usize),
             BothImpl(Subscript<u32>),
             UnBothImpl(Subscript<u32>),
+            Ga(ga::GaOp, ga::Spec),
         }
 
         impl ImplPrimitive {
@@ -3507,6 +3546,7 @@ macro_rules! impl_primitive {
                     ImplPrimitive::StackN { n, .. } => *n,
                     ImplPrimitive::MaxRowCount(n) => *n,
                     ImplPrimitive::SidedEncodeBytes(_) | ImplPrimitive::DecodeBytes(_) => 2,
+                    ImplPrimitive::Ga(op, _) => op.args(),
                     _ => return None
                 })
             }
@@ -3519,6 +3559,7 @@ macro_rules! impl_primitive {
                     ImplPrimitive::StackN { n, .. } => *n,
                     ImplPrimitive::MaxRowCount(n) => *n + 1,
                     ImplPrimitive::SidedEncodeBytes(_) | ImplPrimitive::DecodeBytes(_) => 1,
+                    ImplPrimitive::Ga(op, _) => op.outputs(),
                     _ if self.modifier_args().is_some() => return None,
                     _ => 1
                 })

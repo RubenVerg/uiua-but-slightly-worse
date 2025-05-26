@@ -113,6 +113,7 @@ impl Value {
             Value::Complex(a) => Value::Complex(a.pick(index_shape, &index_data, env)?),
             Value::Char(a) => Value::Char(a.pick(index_shape, &index_data, env)?),
             Value::Box(a) => Value::Box(a.pick(index_shape, &index_data, env)?),
+            Value::Lambda(a) => Value::Lambda(a.pick(index_shape, &index_data, env)?),
         })
     }
     pub(crate) fn undo_pick(self, index: Self, into: Self, env: &Uiua) -> UiuaResult<Self> {
@@ -1184,6 +1185,9 @@ impl Value {
             }
             Value::Char(a) => Value::Char(a.anti_select(indices_shape, &indices_data, env)?),
             Value::Box(a) => Value::Box(a.anti_select(indices_shape, &indices_data, env)?),
+            Value::Lambda(a) => {
+                Value::Lambda(a.anti_select(indices_shape, &indices_data, env)?)
+            }
         })
     }
     pub(crate) fn anti_pick(self, mut from: Self, env: &Uiua) -> UiuaResult<Self> {
@@ -1545,13 +1549,11 @@ impl<T: ArrayValue> Array<T> {
         for rise in indices_rise {
             let i = normalized_indices[rise];
             match i.cmp(&next) {
-                Ordering::Greater => {
-                    for _ in next..i {
-                        for _ in 0..fill_rep {
-                            data.extend_from_slice(&fill.as_ref().unwrap().data);
-                        }
-                    }
-                }
+                Ordering::Greater => extend_repeat_slice(
+                    &mut data,
+                    &fill.as_ref().unwrap().data,
+                    (i - next) * fill_rep,
+                ),
                 Ordering::Less
                     if !(data[data.len() - row_elems..].iter())
                         .zip(&self.data[rise * row_elems..][..row_elems])
@@ -1649,7 +1651,8 @@ impl<T: ArrayValue> Array<T> {
         let mut indices_rise: Vec<usize> = (0..normalized_indices.len() / index_size).collect();
         indices_rise.sort_unstable_by_key(|&i| &normalized_indices[i * index_size..][..index_size]);
         // Init buffer
-        let mut data = EcoVec::<T>::with_capacity(outer_size * cell_size);
+        let size = validate_size::<T>([outer_size, cell_size], env)?;
+        let mut data = EcoVec::<T>::with_capacity(size);
         let mut next = 0;
         // Unpick
         for rise in indices_rise {
@@ -1661,11 +1664,11 @@ impl<T: ArrayValue> Array<T> {
                 stride *= d;
             }
             if i > next {
-                for _ in next..i {
-                    for _ in 0..fill_rep {
-                        data.extend_from_slice(&fill.as_ref().unwrap().data);
-                    }
-                }
+                extend_repeat_slice(
+                    &mut data,
+                    &fill.as_ref().unwrap().data,
+                    (i - next) * fill_rep,
+                )
             } else if i < next
                 && !(data[data.len() - cell_size..].iter())
                     .zip(&self.data[rise * cell_size..][..cell_size])
@@ -1680,11 +1683,11 @@ impl<T: ArrayValue> Array<T> {
             next = i + 1;
         }
         if outer_size > next {
-            for _ in next..outer_size {
-                for _ in 0..fill_rep {
-                    data.extend_from_slice(&fill.as_ref().unwrap().data);
-                }
-            }
+            extend_repeat_slice(
+                &mut data,
+                &fill.as_ref().unwrap().data,
+                (outer_size - next) * fill_rep,
+            );
         }
         let mut shape = outer_shape;
         shape.extend(cell_shape);

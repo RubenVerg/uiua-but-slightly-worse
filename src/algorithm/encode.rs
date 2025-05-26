@@ -6,8 +6,7 @@ use ecow::{eco_vec, EcoVec};
 use enum_iterator::{all, Sequence};
 
 use crate::{
-    algorithm::validate_size, ast::SubSide, cowslice::CowSlice, fill::FillValue, Array, ArrayFlags,
-    ArrayMeta, Boxed, Complex, Shape, Uiua, UiuaResult, Value,
+    algorithm::validate_size, ast::SubSide, cowslice::CowSlice, fill::FillValue, Array, ArrayFlags, ArrayMeta, ArrayValue, Boxed, Complex, Lambda, Shape, Uiua, UiuaResult, Value
 };
 
 use super::FillContext;
@@ -186,6 +185,9 @@ impl Value {
                     self.rank()
                 )));
             }
+            if self.type_id() == Lambda::TYPE_ID {
+                return Err(env.error("Cannot write lambdas to an XSLX workbook"));
+            }
             let sheet_arrays = if self.is_map() {
                 let mut sheet_arrays = Vec::new();
                 for (k, v) in self.map_kv() {
@@ -228,6 +230,7 @@ impl Value {
                                             sheet_row.add_cell(b.format())
                                         }
                                     }
+                                    Value::Lambda(_) => unreachable!(),
                                 }
                             }
                             writer.append_row(sheet_row)?;
@@ -687,6 +690,9 @@ impl Value {
                     bytes.extend(re.to_le_bytes());
                     bytes.extend(im.to_le_bytes());
                 }
+            }
+            Value::Lambda(_) => {
+                return Err(env.error("Cannot write lambdas to binary"));
             }
         }
         Ok(())

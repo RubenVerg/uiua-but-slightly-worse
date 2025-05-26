@@ -16,7 +16,7 @@ use crate::{
     array::*,
     cowslice::CowSlice,
     grid_fmt::GridFmt,
-    Boxed, Complex, Shape, Uiua, UiuaResult,
+    Boxed, Complex, Shape, Lambda, Uiua, UiuaResult,
 };
 
 /// A generic array value
@@ -36,6 +36,8 @@ pub enum Value {
     Char(Array<char>),
     /// Common box array
     Box(Array<Boxed>),
+    /// Common lambda array
+    Lambda(Array<Lambda>),
 }
 
 impl Default for Value {
@@ -58,6 +60,7 @@ macro_rules! val_as_arr {
             Value::Complex($arr) => $body,
             Value::Char($arr) => $body,
             Value::Box($arr) => $body,
+            Value::Lambda($arr) => $body,
         }
     };
     ($input:expr, $f:path) => {
@@ -67,6 +70,7 @@ macro_rules! val_as_arr {
             Value::Complex(arr) => $f(arr),
             Value::Char(arr) => $f(arr),
             Value::Box(arr) => $f(arr),
+            Value::Lambda(arr) => $f(arr),
         }
     };
     ($input:expr, $env:expr, $f:path) => {
@@ -76,6 +80,7 @@ macro_rules! val_as_arr {
             Value::Complex(arr) => $f(arr, $env),
             Value::Char(arr) => $f(arr, $env),
             Value::Box(arr) => $f(arr, $env),
+            Value::Lambda(arr) => $f(arr, $env),
         }
     };
 }
@@ -97,6 +102,7 @@ impl Value {
             Self::Complex(_) => Complex::TYPE_ID,
             Self::Char(_) => char::TYPE_ID,
             Self::Box(_) => Boxed::TYPE_ID,
+            Self::Lambda(_) => Lambda::TYPE_ID,
         }
     }
     /// Get a reference to a possible number array
@@ -193,6 +199,7 @@ impl Value {
             Self::Complex(_) => "complex",
             Self::Char(_) => "character",
             Self::Box(_) => "box",
+            Self::Lambda(_) => "lambda",
         }
     }
     /// Get a plural form of the value's type name
@@ -203,6 +210,7 @@ impl Value {
             Self::Complex(_) => "complexes",
             Self::Char(_) => "characters",
             Self::Box(_) => "boxes",
+            Self::Lambda(_) => "lambdas",
         }
     }
     /// Get the number of rows
@@ -231,6 +239,9 @@ impl Value {
                 .into(),
             Self::Box(_) => (env.scalar_fill().map(|fv| fv.value))
                 .unwrap_or_else(|_| Boxed::proxy())
+                .into(),
+            Self::Lambda(_) => (env.scalar_fill().map(|fv| fv.value))
+                .unwrap_or_else(|_| Lambda::proxy())
                 .into(),
         }
     }
@@ -291,6 +302,16 @@ impl Value {
                 ),
             )
             .into(),
+            Self::Lambda(_) => Array::new(
+                shape,
+                CowSlice::from_elem(
+                    env.scalar_fill()
+                        .map(|fv| fv.value)
+                        .unwrap_or_else(|_| Lambda::proxy()),
+                    elem_count,
+                ),
+            )
+            .into()
         }
     }
     pub(crate) fn fill(&mut self, env: &Uiua) -> Result<Value, &'static str> {
@@ -304,6 +325,10 @@ impl Value {
                 .map(Into::into),
             Value::Char(_) => env.array_fill::<char>().map(|fv| fv.value).map(Into::into),
             Value::Box(_) => env.array_fill::<Boxed>().map(|fv| fv.value).map(Into::into),
+            Value::Lambda(_) => env
+                .array_fill::<Complex>()
+                .map(|fv| fv.value)
+                .map(Into::into),
         }
     }
     pub(crate) fn first_dim_zero(&self) -> Self {
@@ -324,6 +349,7 @@ impl Value {
             Self::Complex(_) => size_of::<Complex>(),
             Self::Char(_) => size_of::<char>(),
             Self::Box(_) => size_of::<Boxed>(),
+            Self::Lambda(_) => size_of::<Lambda>(),
         }
     }
 }
@@ -443,6 +469,7 @@ impl Value {
         co: impl FnOnce(&mut Array<Complex>) -> T,
         ch: impl FnOnce(&mut Array<char>) -> T,
         f: impl FnOnce(&mut Array<Boxed>) -> T,
+        l: impl FnOnce(&mut Array<Lambda>) -> T,
     ) -> T {
         match self {
             Self::Num(array) => n(array),
@@ -451,11 +478,12 @@ impl Value {
             Self::Char(array) => ch(array),
             Self::Box(array) => {
                 if let Some(Boxed(value)) = array.as_scalar_mut() {
-                    value.generic_mut_deep(n, b, co, ch, f)
+                    value.generic_mut_deep(n, b, co, ch, f, l)
                 } else {
                     f(array)
                 }
             }
+            Self::Lambda(array) => l(array),
         }
     }
     #[allow(clippy::too_many_arguments)]
@@ -1470,6 +1498,7 @@ impl Value {
             Value::Complex(arr) => arr.convert_with(|v| Boxed(Value::from(v))),
             Value::Char(arr) => arr.convert_with(|v| Boxed(Value::from(v))),
             Value::Box(arr) => arr,
+            Value::Lambda(arr) => arr.convert_with(|v| Boxed(Value::from(v))),
         }
     }
     /// Convert to a box array by boxing every element
@@ -1486,6 +1515,7 @@ impl Value {
             Value::Complex(arr) => Cow::Owned(arr.convert_ref_with(|v| Boxed(Value::from(v)))),
             Value::Char(arr) => Cow::Owned(arr.convert_ref_with(|v| Boxed(Value::from(v)))),
             Value::Box(arr) => Cow::Borrowed(arr),
+            Value::Lambda(arr) => Cow::Owned(arr.convert_ref_with(|v| Boxed(Value::from(v)))),
         }
     }
     /// Propogate a value's label accross an operation
@@ -1638,6 +1668,7 @@ value_from!(u8, Byte);
 value_from!(char, Char);
 value_from!(Boxed, Box);
 value_from!(Complex, Complex);
+value_from!(Lambda, Lambda);
 
 impl FromIterator<usize> for Value {
     fn from_iter<I: IntoIterator<Item = usize>>(iter: I) -> Self {
@@ -1972,7 +2003,7 @@ macro_rules! value_dy_impl {
                         let f = |$meta: &ArrayMeta| $pred;
                         f(&a.meta) && f(&b.meta)
                     })* => {
-                        bin_pervade_mut(a, &mut b, env, $name::$f2)?;
+                        bin_pervade_mut(a, &mut b, true, env, $name::$f2)?;
                         let mut val: Value = b.into();
                         $(if $reset_value_flags {
                             val.meta.take_value_flags();
@@ -2343,6 +2374,7 @@ impl Ord for Value {
             (Value::Complex(a), Value::Complex(b)) => a.cmp(b),
             (Value::Char(a), Value::Char(b)) => a.cmp(b),
             (Value::Box(a), Value::Box(b)) => a.cmp(b),
+            (Value::Lambda(a), Value::Lambda(b)) => a.cmp(b),
             (Value::Num(a), Value::Byte(b)) => a.partial_cmp(b).unwrap(),
             (Value::Byte(a), Value::Num(b)) => a.partial_cmp(b).unwrap(),
             (Value::Num(_), _) => Ordering::Less,
@@ -2353,6 +2385,8 @@ impl Ord for Value {
             (_, Value::Complex(_)) => Ordering::Greater,
             (Value::Char(_), _) => Ordering::Less,
             (_, Value::Char(_)) => Ordering::Greater,
+            (Value::Lambda(_), _) => Ordering::Less,
+            (_, Value::Lambda(_)) => Ordering::Greater,
         }
     }
 }

@@ -297,6 +297,7 @@ fn tuple2(f: SigNode, env: &mut Uiua) -> UiuaResult {
                 Value::Complex(a) => inner(a, k, f, is_scalar, scalar, env)?,
                 Value::Char(a) => inner(a, k, f, is_scalar, scalar, env)?,
                 Value::Box(a) => inner(a, k, f, is_scalar, scalar, env)?,
+                Value::Lambda(a) => inner(a, k, f, is_scalar, scalar, env)?,
             };
         }
     }
@@ -327,7 +328,7 @@ impl Value {
     }
 }
 
-fn combinations(n: usize, k: usize, same: bool) -> f64 {
+pub fn combinations(n: usize, k: usize, same: bool) -> f64 {
     if k > n {
         return 0.0;
     }

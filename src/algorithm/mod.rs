@@ -16,13 +16,12 @@ use ecow::{EcoString, EcoVec};
 use smallvec::SmallVec;
 
 use crate::{
-    cowslice::ecovec_extend_cowslice, fill::FillValue, grid_fmt::GridFmt, Array, ArrayValue, Boxed,
-    CodeSpan, Complex, ExactDoubleIterator, Inputs, Ops, PersistentMeta, Shape, SigNode, Signature,
-    Span, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value,
+    cowslice::ecovec_extend_cowslice, fill::FillValue, grid_fmt::GridFmt, Array, ArrayValue, Boxed, CodeSpan, Complex, ExactDoubleIterator, Inputs, Lambda, Ops, PersistentMeta, Shape, SigNode, Signature, Span, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value
 };
 
 mod dyadic;
 pub mod encode;
+pub mod ga;
 pub mod groups;
 pub mod loops;
 pub mod map;
@@ -142,10 +141,10 @@ pub(crate) fn validate_size_impl(
         }
         elements *= size as f64;
     }
-    let size = elements * elem_size as f64;
-    if size > u32::MAX as f64 {
+    if elements > u32::MAX as f64 {
         return Err(SizeError(elements));
     }
+    let size = elements * elem_size as f64;
 
     thread_local! {
         static MAX_MB: RefCell<Option<f64>> = const { RefCell::new(None) };
@@ -264,6 +263,7 @@ pub trait FillContext: ErrorContext {
             Value::Complex(_) => self.scalar_fill::<Complex>().is_ok(),
             Value::Char(_) => self.scalar_fill::<char>().is_ok(),
             Value::Box(_) => self.scalar_fill::<Boxed>().is_ok(),
+            Value::Lambda(_) => self.scalar_fill::<Lambda>().is_ok(),
         }
     }
 }
@@ -351,6 +351,7 @@ where
         Value::Complex(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
         Value::Char(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
         Value::Box(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
+        Value::Lambda(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
     }
 }
 

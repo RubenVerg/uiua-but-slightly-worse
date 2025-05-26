@@ -10,7 +10,7 @@ use crate::{
     },
     cowslice::cowslice,
     fill::FillValue,
-    val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Primitive, Shape, Uiua, UiuaResult,
+    val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Lambda, Primitive, Shape, Uiua, UiuaResult,
     Value,
 };
 
@@ -1035,6 +1035,9 @@ impl Value {
                         Value::Char(_) => {
                             return Err(ctx.error("Cannot combine number and character arrays"))
                         }
+                        Value::Lambda(_) => {
+                            return Err(ctx.error("Cannot combine number and lambda arrays"))
+                        }
                         _ => {}
                     }
                 }
@@ -1063,6 +1066,9 @@ impl Value {
                         Value::Char(_) => {
                             return Err(ctx.error("Cannot combine number and character arrays"))
                         }
+                        Value::Lambda(_) => {
+                            return Err(ctx.error("Cannot combine number and lambda arrays"))
+                        }
                         _ => {}
                     }
                 }
@@ -1089,6 +1095,9 @@ impl Value {
                         Value::Char(_) => {
                             return Err(ctx.error("Cannot combine complex and character arrays"))
                         }
+                        Value::Lambda(_) => {
+                            return Err(ctx.error("Cannot combine complex and lambda arrays"))
+                        }
                         _ => {}
                     }
                 }
@@ -1114,6 +1123,9 @@ impl Value {
                         Value::Complex(_) => {
                             return Err(ctx.error("Cannot combine character and complex arrays"))
                         }
+                        Value::Lambda(_) => {
+                            return Err(ctx.error("Cannot combine character and lambda arrays"))
+                        }
                         _ => {}
                     }
                 }
@@ -1131,6 +1143,34 @@ impl Value {
             Value::Box(_) => {
                 row_values = values.into_iter();
                 row_values.next().unwrap()
+            }
+            Value::Lambda(_) => {
+                let mut box_rank = None;
+                for b in &values[1..] {
+                    match b {
+                        Value::Box(arr) => box_rank = box_rank.max(Some(arr.rank())),
+                        Value::Num(_) | Value::Byte(_) => {
+                            return Err(ctx.error("Cannot combine lambda and number arrays"))
+                        }
+                        Value::Complex(_) => {
+                            return Err(ctx.error("Cannot combine lambda and complex arrays"))
+                        }
+                        Value::Char(_) => {
+                            return Err(ctx.error("Cannot combine lambda and character arrays"))
+                        }
+                        _ => {}
+                    }
+                }
+                row_values = values.into_iter();
+                let arr = match row_values.next().unwrap() {
+                    Value::Lambda(arr) => arr,
+                    _ => unreachable!(),
+                };
+                if let Some(box_rank) = box_rank {
+                    Value::Box(arr.box_depth(box_rank))
+                } else {
+                    Value::Lambda(arr)
+                }
             }
         };
 
@@ -1176,6 +1216,15 @@ impl Value {
                     }
                 },
                 Value::Box(arr) => match ctx.scalar_fill::<Boxed>() {
+                    Ok(fill) => arr.fill_to_shape(&max_shape, fill),
+                    Err(e) => {
+                        return Err(C::fill_error(ctx.error(format!(
+                            "Cannot combine arrays with shapes {} and {max_shape}{e}",
+                            arr.shape
+                        ))))
+                    }
+                },
+                Value::Lambda(arr) => match ctx.scalar_fill::<Lambda>() {
                     Ok(fill) => arr.fill_to_shape(&max_shape, fill),
                     Err(e) => {
                         return Err(C::fill_error(ctx.error(format!(
@@ -1248,6 +1297,15 @@ impl Value {
                     match val {
                         Value::Box(b) => a.append(b, allow_ext, ctx)?,
                         val => a.append(val.box_depth(a.rank()), allow_ext, ctx)?,
+                    }
+                }
+                a.into()
+            }
+            Value::Lambda(mut a) => {
+                for val in row_values {
+                    match val {
+                        Value::Lambda(b) => a.append(b, allow_ext, ctx)?,
+                        _ => unreachable!(),
                     }
                 }
                 a.into()

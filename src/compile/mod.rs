@@ -25,6 +25,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    algorithm::ga::Spec,
     ast::*,
     check::nodes_sig,
     format::{format_word, format_words},
@@ -216,7 +217,7 @@ enum ScopeKind {
     Temp(Option<MacroLocal>),
     /// A binding scope
     Binding,
-    /// A function scope
+    /// A function scope between some delimiters
     Function,
     /// A test scope between `---`s
     Test,
@@ -1212,8 +1213,8 @@ impl Compiler {
             match (cfg!(target_arch = "wasm32"), cfg!(debug_assertions)) {
                 (false, false) => (512 + 256 + 64) * 1024 * 2,
                 (false, true) => (512 + 256 + 64) * 1024,
-                (true, false) => 512 * 1024,
-                (true, true) => 512 * 1024,
+                (true, false) => 640 * 1024,
+                (true, true) => 640 * 1024,
             };
         let start_addr = *self.start_addrs.first().unwrap();
         let curr = 0u8;
@@ -2128,28 +2129,41 @@ impl Compiler {
                     );
                     self.modified(*m, Some(scr.map(Into::into)))?
                 }
-                Modifier::Primitive(prim) => match prim {
-                    _ => {
-                        if !matches!(
-                            prim,
-                            (Both | Bracket)
-                                | (Reach | On | By | With | Off)
-                                | (Rows | Each | Inventory)
-                                | (Repeat | Tuples | Stencil)
-                                | (Fill)
-                        ) {
-                            self.add_error(
-                                m.modifier.span.clone().merge(scr.span.clone()),
-                                format!("Subscripts are not implemented for {}", prim.format()),
-                            );
-                        }
-                        self.modified(*m, Some(scr.map(Into::into)))?
+                Modifier::Primitive(prim) => {
+                    if !matches!(
+                        prim,
+                        (Both | Bracket)
+                            | (Slf | Backward | Reach | On | By | With | Off)
+                            | (Rows | Each | Inventory)
+                            | (Repeat | Tuples | Stencil)
+                            | (Fill | Geometric)
+                    ) {
+                        self.add_error(
+                            m.modifier.span.clone().merge(scr.span.clone()),
+                            format!("Subscripts are not implemented for {}", prim.format()),
+                        );
                     }
-                },
+                    self.modified(*m, Some(scr.map(Into::into)))?
+                }
             },
-            Word::Primitive(prim) if prim.class() == PrimClass::DyadicPervasive => {
+            Word::Primitive(prim) => self.subscript_prim(prim, sub.word.span, scr)?,
+            _ => {
+                self.add_error(span.clone(), "Subscripts are not allowed in this context");
+                self.word(sub.word)?
+            }
+        })
+    }
+    fn subscript_prim(
+        &mut self,
+        prim: Primitive,
+        span: CodeSpan,
+        scr: Sp<Subscript>,
+    ) -> UiuaResult<Node> {
+        use Primitive::*;
+        Ok(match prim {
+            prim if prim.class() == PrimClass::DyadicPervasive => {
                 let Some(nos) = self.subscript_n_or_side(&scr, prim.format()) else {
-                    return self.word(sub.word);
+                    return Ok(self.primitive(prim, span));
                 };
                 match nos {
                     SubNOrSide::N(n) => {
@@ -2173,16 +2187,16 @@ impl Compiler {
                     }
                 }
             }
-            Word::Primitive(EncodeBytes) => {
+            EncodeBytes => {
                 let Some(side) = self.subscript_side_only(&scr, EncodeBytes.format()) else {
-                    return self.word(sub.word);
+                    return Ok(self.primitive(EncodeBytes, span));
                 };
-                let span = self.add_span(sub.word.span);
+                let span = self.add_span(span);
                 Node::ImplPrim(ImplPrimitive::SidedEncodeBytes(side), span)
             }
-            Word::Primitive(prim) => {
+            prim => {
                 let Some(n) = self.subscript_n_only(&scr, prim.format()) else {
-                    return self.word(sub.word);
+                    return Ok(self.primitive(prim, span));
                 };
                 match prim {
                     prim if prim.sig().is_some_and(|sig| sig == (2, 1))
@@ -2377,10 +2391,6 @@ impl Compiler {
                     }
                 }
             }
-            _ => {
-                self.add_error(span.clone(), "Subscripts are not allowed in this context");
-                self.word(sub.word)?
-            }
         })
     }
 }
@@ -2542,7 +2552,7 @@ impl Compiler {
     where
         S: fmt::Display,
     {
-        if !cfg!(debug_assertions) && !self.allow_experimental() {
+        if !self.allow_experimental() {
             self.scope.experimental_error = true;
             self.add_error(span.clone(), message().to_string());
         }

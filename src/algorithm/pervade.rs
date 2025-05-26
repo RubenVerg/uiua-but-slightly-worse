@@ -19,7 +19,7 @@ pub trait PervasiveFn<A, B> {
     fn call(&self, a: A, b: B, env: &Uiua) -> Result<Self::Output, Self::Error>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct InfalliblePervasiveFn<A, B, C, F>(F, PhantomData<(A, B, C)>);
 
 impl<A, B, C, F> InfalliblePervasiveFn<A, B, C, F> {
@@ -71,7 +71,7 @@ pub(crate) fn pervade_dim(a: usize, b: usize) -> usize {
     }
 }
 
-fn derive_new_shape(
+pub fn derive_new_shape(
     ash: &Shape,
     bsh: &Shape,
     a_fill_sh: Result<&Shape, &'static str>,
@@ -318,6 +318,7 @@ where
 pub fn bin_pervade_mut<T>(
     mut a: Array<T>,
     b: &mut Array<T>,
+    use_fill: bool,
     env: &Uiua,
     f: impl Fn(T, T) -> T + Copy,
 ) -> UiuaResult
@@ -367,7 +368,11 @@ where
         Ok((new_shape, requires_fill))
     }
 
-    let fill = env.scalar_fill::<T>();
+    let fill = if use_fill {
+        env.scalar_fill::<T>()
+    } else {
+        Err("")
+    };
     let (new_shape, requires_fill) =
         derive_new_shape(&a.shape, &b.shape, fill.as_ref().err().copied(), env)?;
     let fill = if requires_fill { fill.ok() } else { None };

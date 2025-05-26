@@ -159,6 +159,7 @@ mod fill;
 pub mod format;
 mod function;
 mod grid_fmt;
+mod lambda;
 mod lex;
 pub mod lsp;
 mod parse;
@@ -190,6 +191,7 @@ pub use self::{
     error::*,
     ffi::*,
     function::*,
+    lambda::*,
     lex::is_ident_char,
     lex::*,
     lsp::{SpanKind, Spans},
@@ -211,6 +213,10 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// A Uiua identifier
 pub type Ident = EcoString;
+
+fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    v == &T::default()
+}
 
 #[cfg(test)]
 mod tests {
