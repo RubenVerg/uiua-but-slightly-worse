@@ -2334,6 +2334,7 @@ macro_rules! eq_impls {
                 (Num, Complex, x_com),
                 (Complex, Byte, com_x),
                 (Byte, Complex, x_com),
+                (Lambda, Lambda, generic),
                 // Type comparable
                 (Num, Char, always_less),
                 (Byte, Char, always_less),
@@ -2341,6 +2342,14 @@ macro_rules! eq_impls {
                 (Char, Num, always_greater),
                 (Char, Byte, always_greater),
                 (Char, Complex, always_greater),
+                (Num, Lambda, always_less),
+                (Byte, Lambda, always_less),
+                (Char, Lambda, always_less),
+                (Complex, Lambda, always_less),
+                (Lambda, Num, always_greater),
+                (Lambda, Byte, always_greater),
+                (Lambda, Char, always_greater),
+                (Lambda, Complex, always_greater),
             );
         )*
     };
@@ -2363,6 +2372,7 @@ macro_rules! cmp_impls {
                 (Num, Complex, x_com),
                 (Complex, Byte, com_x),
                 (Byte, Complex, x_com),
+                (Lambda, Lambda, generic),
                 // Type comparable
                 (Num, Char, always_less),
                 (Byte, Char, always_less),
@@ -2370,6 +2380,14 @@ macro_rules! cmp_impls {
                 (Char, Num, always_greater),
                 (Char, Byte, always_greater),
                 (Char, Complex, always_greater),
+                (Num, Lambda, always_less),
+                (Byte, Lambda, always_less),
+                (Char, Lambda, always_less),
+                (Complex, Lambda, always_less),
+                (Lambda, Num, always_greater),
+                (Lambda, Byte, always_greater),
+                (Lambda, Char, always_greater),
+                (Lambda, Complex, always_greater),
             );
         )*
     };
