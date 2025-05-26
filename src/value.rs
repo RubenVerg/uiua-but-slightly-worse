@@ -1798,6 +1798,12 @@ value_mon_impl!(
     [Char, char]
 );
 value_mon_impl!(
+    scalar_recip,
+    [Num, num],
+    (Byte, byte),
+    [Complex, com]
+);
+value_mon_impl!(
     not,
     [Num, num],
     [|meta| meta.flags.is_boolean(), Byte, bool],
@@ -1930,6 +1936,15 @@ impl Value {
                 *arr.shape.last_mut().unwrap() = last;
                 arr.into()
             }
+            value => value.scalar_neg(env)?,
+        };
+        val.meta.or_sorted_flags_rev(sorted_flags);
+        Ok(val)
+    }
+    /// take the `reciprocal` of a value
+    pub fn recip(mut self, env: &Uiua) -> UiuaResult<Self> {
+        let sorted_flags = self.meta.take_sorted_flags();
+        let mut val = match self {
             Value::Lambda(mut lams) => {
                 for lam in lams.data.as_mut_slice() {
                     let inv = lam.sn.node.un_inverse(&env.asm);
@@ -1951,7 +1966,7 @@ impl Value {
                 }
                 lams.into()
             }
-            value => value.scalar_neg(env)?,
+            value => value.scalar_recip(env)?,
         };
         val.meta.or_sorted_flags_rev(sorted_flags);
         Ok(val)
@@ -2196,17 +2211,6 @@ value_dy_math_impl!(
         (Char, Num, char_num),
         (Byte, Char, byte_char),
         (Char, Byte, char_byte),
-        (Lambda, Lambda, lambda_lambda),
-        (Lambda, Byte, lambda_x),
-        (Lambda, Num, lambda_x),
-        (Lambda, Complex, lambda_x),
-        (Lambda, Char, lambda_x),
-        (Lambda, Box, lambda_x),
-        (Byte, Lambda, x_lambda),
-        (Num, Lambda, x_lambda),
-        (Complex, Lambda, x_lambda),
-        (Char, Lambda, x_lambda),
-        (Box, Lambda, x_lambda),
         [|meta| meta.flags.is_boolean(), Byte, bool_bool, true]
     ),
     maintain_both_sortedness
@@ -2227,6 +2231,17 @@ value_dy_math_impl!(
         (Char, Num, char_num),
         (Byte, Char, byte_char),
         (Char, Byte, char_byte),
+        (Lambda, Lambda, lambda_lambda),
+        (Lambda, Byte, lambda_x),
+        (Lambda, Num, lambda_x),
+        (Lambda, Complex, lambda_x),
+        (Lambda, Char, lambda_x),
+        (Lambda, Box, lambda_x),
+        (Byte, Lambda, x_lambda),
+        (Num, Lambda, x_lambda),
+        (Complex, Lambda, x_lambda),
+        (Char, Lambda, x_lambda),
+        (Box, Lambda, x_lambda),
         [|meta| meta.flags.is_boolean(), Byte, bool_bool],
     ),
     signed_scalar_sortedness

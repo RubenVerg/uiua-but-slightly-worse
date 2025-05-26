@@ -8,8 +8,8 @@ use std::{
 use ecow::eco_vec;
 
 use crate::fill::FillValue;
-use crate::{algorithm::loops::flip, array::*, Uiua, UiuaError, UiuaResult, Value};
-use crate::{Complex, Shape};
+use crate::{algorithm::loops::flip, array::*, SigNode, Uiua, UiuaError, UiuaResult, Value};
+use crate::{Complex, Lambda, Shape};
 
 use super::{multi_output, FillContext, MultiOutput};
 
@@ -881,6 +881,21 @@ pub mod scalar_neg {
         env.error(format!("Cannot negate {a}"))
     }
 }
+pub mod scalar_recip {
+    use super::*;
+    pub fn num(a: f64) -> f64 {
+        1.0 / a
+    }
+    pub fn byte(a: u8) -> f64 {
+        1.0 / f64::from(a)
+    }
+    pub fn com(a: Complex) -> Complex {
+        1.0 / a
+    }
+    pub fn error<T: Display>(a: T, env: &Uiua) -> UiuaError {
+        env.error(format!("Cannot take the reciprocal {a}"))
+    }
+}
 pub mod scalar_abs {
     use super::*;
     pub fn num(a: f64) -> f64 {
@@ -1219,8 +1234,6 @@ cmp_impl!(other_is_gt == Ordering::Greater);
 cmp_impl!(other_is_ge != Ordering::Less);
 
 pub mod add {
-    use crate::{Lambda, SigNode};
-
     use super::*;
     pub fn num_num(a: f64, b: f64) -> f64 {
         b + a
@@ -1256,19 +1269,6 @@ pub mod add {
     }
     pub fn char_byte(a: char, b: u8) -> char {
         char::from_u32((b as i64 + a as i64) as u32).unwrap_or('\0')
-    }
-    pub fn lambda_lambda(a: Lambda, b: Lambda) -> Lambda {
-        let repr = format!("({}{})", a.repr, b.repr).into();
-        let mut node = b.sn.node;
-        node.push(a.sn.node);
-        let sig = a.sn.sig.compose(b.sn.sig);
-        Lambda { sn: SigNode::new(sig, node), repr }
-    }
-    pub fn lambda_x(a: Lambda, b: impl Into<Value>) -> Lambda {
-        lambda_lambda(a, Lambda::noad(b.into()))
-    }
-    pub fn x_lambda(a: impl Into<Value>, b: Lambda) -> Lambda {
-        lambda_lambda(Lambda::noad(a.into()), b)
     }
     pub fn error<T: Display>(a: T, b: T, env: &Uiua) -> UiuaError {
         env.error(format!("Cannot add {a} and {b}"))
@@ -1389,6 +1389,19 @@ pub mod mul {
     }
     pub fn x_com(a: impl Into<Complex>, b: Complex) -> Complex {
         b * a.into()
+    }
+    pub fn lambda_lambda(a: Lambda, b: Lambda) -> Lambda {
+        let repr = format!("({}{})", a.repr, b.repr).into();
+        let mut node = b.sn.node;
+        node.push(a.sn.node);
+        let sig = a.sn.sig.compose(b.sn.sig);
+        Lambda { sn: SigNode::new(sig, node), repr }
+    }
+    pub fn lambda_x(a: Lambda, b: impl Into<Value>) -> Lambda {
+        lambda_lambda(a, Lambda::noad(b.into()))
+    }
+    pub fn x_lambda(a: impl Into<Value>, b: Lambda) -> Lambda {
+        lambda_lambda(Lambda::noad(a.into()), b)
     }
     pub fn error<T: Display>(a: T, b: T, env: &Uiua) -> UiuaError {
         env.error(format!("Cannot multiply {a} and {b}"))

@@ -198,6 +198,10 @@ primitive!(
         MonadicPervasive,
         ("negate", AsciiToken::Backtick, '¯')
     ),
+    /// Take the reciprocal of a number
+    /// 
+    /// ex: ⨪ 5
+    (1, Recip, MonadicPervasive, ("reciprocal", '⨪')),
     /// Get the absolute value of a number
     ///
     /// ex: ⌵ ¯1

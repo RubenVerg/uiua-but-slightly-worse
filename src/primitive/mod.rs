@@ -553,6 +553,7 @@ impl Primitive {
             Primitive::Identity => env.touch_stack(1)?,
             Primitive::Not => env.monadic_env(Value::not)?,
             Primitive::Neg => env.monadic_env(Value::neg)?,
+            Primitive::Recip => env.monadic_env(Value::recip)?,
             Primitive::Abs => env.monadic_env(Value::abs)?,
             Primitive::Sign => env.monadic_env(Value::sign)?,
             Primitive::Sqrt => env.monadic_env(Value::sqrt)?,
