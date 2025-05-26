@@ -865,6 +865,7 @@ impl Value {
             |a| a.reverse_depth(depth),
             |a| a.reverse_depth(depth),
             |a| a.reverse_depth(depth),
+            |a| a.reverse_depth(depth),
         )
     }
 }
@@ -926,6 +927,7 @@ impl Value {
             Array::transpose,
             Array::transpose,
             Array::transpose,
+            Array::transpose,
         )
     }
     pub(crate) fn transpose_depth(&mut self, depth: usize, amnt: i32) {
@@ -943,6 +945,7 @@ impl Value {
                     b.transpose_depth(depth, amnt);
                 }
             }
+            Value::Lambda(l) => l.transpose_depth(depth, amnt),
         }
     }
     /// Like transpose, but the axes are reversed instead of rotated
@@ -961,6 +964,7 @@ impl Value {
                     b.retropose_depth(depth);
                 }
             }
+            Value::Lambda(l) => l.retropose_depth(depth),
         }
     }
 }
@@ -1140,6 +1144,7 @@ impl Value {
             Value::Char(_) => false,
             Value::Box(arr) => arr.data.iter().all(|Boxed(val)| val.all_true()),
             Value::Complex(arr) => arr.data.iter().all(|&c| c.re == 1.0 && c.im == 1.0),
+            Value::Lambda(_) => false,
         }
     }
     /// Count which occurrence of each row that row is
@@ -2190,6 +2195,7 @@ impl Value {
                     }
                 }
                 Value::Box(arr) => format!("□{}", arr.data[0].0.representation()),
+                Value::Lambda(arr) => format!("⋋{}", arr.data[0]),
             },
             1 => match self {
                 Value::Char(arr) => format!("{:?}", arr.data.iter().collect::<String>()),

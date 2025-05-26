@@ -465,6 +465,12 @@ impl Compiler {
         self.handle_primitive_deprecation(prim, &modified.modifier.span);
 
         Ok(Some(match prim {
+            Lambda => {
+                let op = modified.operands.first().unwrap().clone();
+                let repr = format_word(&op, &self.asm.inputs).into();
+                let sn = self.word_sig(op)?;
+                Node::new_push(crate::Lambda{ sn, repr })
+            }
             Gap => {
                 let (SigNode { mut node, .. }, _) = self.monadic_modifier_op(modified)?;
                 let span = self.add_span(modified.modifier.span.clone());

@@ -113,6 +113,7 @@ impl Value {
             Value::Complex(a) => Value::Complex(a.pick(index_shape, &index_data, env)?),
             Value::Char(a) => Value::Char(a.pick(index_shape, &index_data, env)?),
             Value::Box(a) => Value::Box(a.pick(index_shape, &index_data, env)?),
+            Value::Lambda(a) => Value::Lambda(a.pick(index_shape, &index_data, env)?),
         })
     }
     pub(crate) fn undo_pick(self, index: Self, into: Self, env: &Uiua) -> UiuaResult<Self> {
@@ -1184,6 +1185,9 @@ impl Value {
             }
             Value::Char(a) => Value::Char(a.anti_select(indices_shape, &indices_data, env)?),
             Value::Box(a) => Value::Box(a.anti_select(indices_shape, &indices_data, env)?),
+            Value::Lambda(a) => {
+                Value::Lambda(a.anti_select(indices_shape, &indices_data, env)?)
+            }
         })
     }
     pub(crate) fn anti_pick(self, mut from: Self, env: &Uiua) -> UiuaResult<Self> {

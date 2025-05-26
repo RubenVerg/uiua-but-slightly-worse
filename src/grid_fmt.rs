@@ -8,12 +8,7 @@ use std::{
 };
 
 use crate::{
-    algorithm::map::{EMPTY_CHAR, EMPTY_NAN, TOMBSTONE_CHAR, TOMBSTONE_NAN},
-    array::{Array, ArrayValue},
-    boxed::Boxed,
-    terminal_size, val_as_arr,
-    value::Value,
-    Complex, Primitive, WILDCARD_CHAR, WILDCARD_NAN,
+    algorithm::map::{EMPTY_CHAR, EMPTY_NAN, TOMBSTONE_CHAR, TOMBSTONE_NAN}, array::{Array, ArrayValue}, boxed::Boxed, terminal_size, val_as_arr, value::Value, Complex, Lambda, Primitive, WILDCARD_CHAR, WILDCARD_NAN
 };
 
 type Grid<T = char> = Vec<Vec<T>>;
@@ -201,6 +196,7 @@ impl GridFmt for Value {
                     ..params
                 })
             }
+            Value::Lambda(l) => l.fmt_grid(params)
         }
     }
 }
@@ -233,6 +229,12 @@ pub fn format_char_inner(c: char) -> String {
 impl GridFmt for char {
     fn fmt_grid(&self, _params: GridFmtParams) -> Grid {
         vec![once('@').chain(format_char_inner(*self).chars()).collect()]
+    }
+}
+
+impl GridFmt for Lambda {
+    fn fmt_grid(&self, _params: GridFmtParams) -> Grid {
+        vec![format!("{}", self).chars().collect()]
     }
 }
 
@@ -308,6 +310,7 @@ impl<T: GridFmt + ArrayValue> GridFmt for Array<T> {
                     Value::Complex(_) => Complex::alignment(),
                     Value::Char(_) => char::alignment(),
                     Value::Box(_) => Boxed::alignment(),
+                    Value::Lambda(_) => Lambda::alignment(),
                 });
                 let metagrid = metagrid.get_or_insert_with(Metagrid::new);
                 for (key, value) in self.map_kv() {
@@ -324,6 +327,7 @@ impl<T: GridFmt + ArrayValue> GridFmt for Array<T> {
                         Value::Complex(_) => shape_row::<Complex>(&keys_row_shape),
                         Value::Char(_) => shape_row::<char>(&keys_row_shape),
                         Value::Box(_) => shape_row::<Boxed>(&keys_row_shape),
+                        Value::Lambda(_) => shape_row::<Lambda>(&keys_row_shape),
                     };
                     row.extend([' ', '→', ' ']);
                     let mut value_row_shape = self.shape.clone();
@@ -665,6 +669,7 @@ impl<T: ArrayValue> Array<T> {
                 Value::Complex(_) => shape_row::<Complex>(&keys_shape),
                 Value::Char(_) => shape_row::<char>(&keys_shape),
                 Value::Box(_) => shape_row::<Boxed>(&keys_shape),
+                Value::Lambda(_) => shape_row::<Lambda>(&keys_shape),
             }
             .into_iter()
             .collect();

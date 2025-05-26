@@ -10,8 +10,7 @@ use ecow::EcoVec;
 use serde::*;
 
 use crate::{
-    algorithm::ArrayCmpSlice, val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Uiua,
-    UiuaResult, Value,
+    algorithm::ArrayCmpSlice, val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Lambda, Node, SigNode, Uiua, UiuaResult, Value
 };
 
 use super::{ErrorContext, FillContext};
@@ -372,6 +371,7 @@ impl MapKeys {
             Value::Complex(a) => Self::grow_impl(a, &mut self.indices, new_capacity),
             Value::Char(a) => Self::grow_impl(a, &mut self.indices, new_capacity),
             Value::Box(a) => Self::grow_impl(a, &mut self.indices, new_capacity),
+            Value::Lambda(a) => Self::grow_impl(a, &mut self.indices, new_capacity),
             Value::Byte(_) => unreachable!(),
         }
     }
@@ -659,6 +659,7 @@ impl MapKeys {
             Value::Complex(keys) => set_tombstones(keys, dropped),
             Value::Char(keys) => set_tombstones(keys, dropped),
             Value::Box(keys) => set_tombstones(keys, dropped),
+            Value::Lambda(keys) => set_tombstones(keys, dropped),
             Value::Byte(keys) => {
                 let mut nums = keys.convert_ref();
                 set_tombstones(&mut nums, dropped);
@@ -679,6 +680,7 @@ impl MapKeys {
             Value::Complex(keys) => set_tombstones(keys, not_taken),
             Value::Char(keys) => set_tombstones(keys, not_taken),
             Value::Box(keys) => set_tombstones(keys, not_taken),
+            Value::Lambda(keys) => set_tombstones(keys, not_taken),
             Value::Byte(keys) => {
                 let mut nums = keys.convert_ref();
                 set_tombstones(&mut nums, not_taken);
@@ -946,6 +948,21 @@ impl MapItem for Boxed {
     }
 }
 
+impl MapItem for Lambda {
+    fn empty_cell() -> Self {
+        Lambda{ sn: SigNode::default(), repr: "()".into() }
+    }
+    fn tombstone_cell() -> Self {
+        Lambda{ sn: SigNode::new((0, 1), Node::new_push(TOMBSTONE_NAN)), repr: "(tombstone)".into() }
+    }
+    fn is_any_empty_cell(&self) -> bool {
+        *self == Lambda::empty_cell()
+    }
+    fn is_any_tombstone(&self) -> bool {
+        *self == Lambda::tombstone_cell()
+    }
+}
+
 impl MapItem for Value {
     fn empty_cell() -> Self {
         Value::from(EMPTY_NAN)
@@ -960,6 +977,7 @@ impl MapItem for Value {
             Value::Complex(num) => num.data.iter().any(|v| v.is_any_empty_cell()),
             Value::Char(num) => num.data.iter().any(|v| v.is_any_empty_cell()),
             Value::Box(num) => num.data.iter().any(|v| v.is_any_empty_cell()),
+            Value::Lambda(num) => num.data.iter().any(|v| v.is_any_empty_cell()),
         }
     }
     fn is_any_tombstone(&self) -> bool {
@@ -969,6 +987,7 @@ impl MapItem for Value {
             Value::Complex(num) => num.data.iter().any(|v| v.is_any_tombstone()),
             Value::Char(num) => num.data.iter().any(|v| v.is_any_tombstone()),
             Value::Box(num) => num.data.iter().any(|v| v.is_any_tombstone()),
+            Value::Lambda(num) => num.data.iter().any(|v| v.is_any_tombstone()),
         }
     }
     fn is_all_empty_cell(&self) -> bool {
@@ -978,6 +997,7 @@ impl MapItem for Value {
             Value::Complex(num) => num.data.iter().all(|v| v.is_any_empty_cell()),
             Value::Char(num) => num.data.iter().all(|v| v.is_any_empty_cell()),
             Value::Box(num) => num.data.iter().all(|v| v.is_any_empty_cell()),
+            Value::Lambda(num) => num.data.iter().all(|v| v.is_any_empty_cell()),
         }
     }
     fn is_all_tombstone(&self) -> bool {
@@ -987,6 +1007,7 @@ impl MapItem for Value {
             Value::Complex(num) => num.data.iter().all(|v| v.is_any_tombstone()),
             Value::Char(num) => num.data.iter().all(|v| v.is_any_tombstone()),
             Value::Box(num) => num.data.iter().all(|v| v.is_any_tombstone()),
+            Value::Lambda(num) => num.data.iter().all(|v| v.is_any_tombstone()),
         }
     }
 }

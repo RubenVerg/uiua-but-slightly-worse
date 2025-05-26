@@ -1,7 +1,7 @@
 use std::{array, cmp::Ordering, mem::take};
 
 use crate::{
-    cowslice::CowSlice, Array, Assembly, Boxed, Complex, ImplPrimitive, Node, PersistentMeta,
+    cowslice::CowSlice, Array, Assembly, Boxed, Complex, ImplPrimitive, Lambda, Node, PersistentMeta,
     Primitive, Shape, SigNode, Uiua, Value,
 };
 
@@ -11,6 +11,7 @@ enum ScalarType {
     Complex,
     Char,
     Box(Option<Box<Ty>>),
+    Lambda,
 }
 
 impl Value {
@@ -27,6 +28,7 @@ impl Value {
             } else {
                 None
             }),
+            Value::Lambda(_) => ScalarType::Lambda,
         }
     }
     fn ty(&self) -> Ty {
@@ -98,6 +100,7 @@ fn make_val(mut ty: Ty) -> Value {
         ScalarType::Complex => Array::<Complex>::new(ty.shape, CowSlice::default()).into(),
         ScalarType::Char => Array::<char>::new(ty.shape, CowSlice::default()).into(),
         ScalarType::Box(_) => Array::<Boxed>::new(ty.shape, CowSlice::default()).into(),
+        ScalarType::Lambda => Array::<Lambda>::new(ty.shape, CowSlice::default()).into(),
     }
 }
 

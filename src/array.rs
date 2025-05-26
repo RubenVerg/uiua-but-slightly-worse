@@ -18,11 +18,7 @@ use crate::{
     algorithm::{
         map::{MapKeys, EMPTY_NAN, TOMBSTONE_NAN},
         ArrayCmpSlice,
-    },
-    cowslice::{cowslice, CowSlice},
-    fill::{Fill, FillValue},
-    grid_fmt::{ElemAlign, GridFmt},
-    Boxed, Complex, ExactDoubleIterator, HandleKind, Shape, Value,
+    }, cowslice::{cowslice, CowSlice}, fill::{Fill, FillValue}, grid_fmt::{ElemAlign, GridFmt}, Boxed, Complex, ExactDoubleIterator, HandleKind, Lambda, Node, Shape, SigNode, Value
 };
 
 /// Uiua's array type
@@ -1521,6 +1517,27 @@ impl ArrayValue for Complex {
     }
 }
 
+impl ArrayValue for Lambda {
+    const NAME: &'static str = "lambda";
+    const SYMBOL: char = '⋋';
+    const TYPE_ID: u8 = 4;
+    fn get_scalar_fill(fill: &Fill) -> Result<FillValue<Self>, &'static str> {
+        fill.lambda_scalar()
+    }
+    fn get_array_fill(fill: &Fill) -> Result<FillValue<Array<Self>>, &'static str> {
+        fill.lambda_array()
+    }
+    fn array_hash<H: Hasher>(&self, hasher: &mut H) {
+        self.sn.hash(hasher);
+    }
+    fn proxy() -> Self {
+        Lambda{ sn: SigNode::new((0, 0), Node::empty()), repr: "()".into() }
+    }
+    fn empty_list_inner() -> &'static str {
+        "⋋"
+    }
+}
+
 /// Trait for [`ArrayValue`]s that are real numbers
 pub trait RealArrayValue: ArrayValue + Copy {
     /// Whether the value is an integer
@@ -1612,6 +1629,12 @@ impl ArrayCmp<f64> for u8 {
 impl ArrayCmp<u8> for f64 {
     fn array_cmp(&self, other: &u8) -> Ordering {
         self.array_cmp(&(*other as f64))
+    }
+}
+
+impl ArrayCmp for Lambda {
+    fn array_cmp(&self, other: &Self) -> Ordering {
+        self.sn.cmp(&other.sn)
     }
 }
 
@@ -1807,6 +1830,17 @@ impl ArrayValueSer for char {
     }
     fn no_scalar() -> bool {
         true
+    }
+}
+
+impl ArrayValueSer for Lambda {
+    type Scalar = Lambda;
+    type Collection = CowSlice<Lambda>;
+    fn make_collection(data: CowSlice<Self>) -> Self::Collection {
+        data
+    }
+    fn make_data(collection: Self::Collection) -> CowSlice<Self> {
+        collection
     }
 }
 

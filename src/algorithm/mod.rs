@@ -16,9 +16,7 @@ use ecow::{EcoString, EcoVec};
 use smallvec::SmallVec;
 
 use crate::{
-    cowslice::ecovec_extend_cowslice, fill::FillValue, grid_fmt::GridFmt, Array, ArrayValue, Boxed,
-    CodeSpan, Complex, ExactDoubleIterator, Inputs, Ops, PersistentMeta, Shape, SigNode, Signature,
-    Span, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value,
+    cowslice::ecovec_extend_cowslice, fill::FillValue, grid_fmt::GridFmt, Array, ArrayValue, Boxed, CodeSpan, Complex, ExactDoubleIterator, Inputs, Lambda, Ops, PersistentMeta, Shape, SigNode, Signature, Span, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value
 };
 
 mod dyadic;
@@ -265,6 +263,7 @@ pub trait FillContext: ErrorContext {
             Value::Complex(_) => self.scalar_fill::<Complex>().is_ok(),
             Value::Char(_) => self.scalar_fill::<char>().is_ok(),
             Value::Box(_) => self.scalar_fill::<Boxed>().is_ok(),
+            Value::Lambda(_) => self.scalar_fill::<Lambda>().is_ok(),
         }
     }
 }
@@ -352,6 +351,7 @@ where
         Value::Complex(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
         Value::Char(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
         Value::Box(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
+        Value::Lambda(arr) => fill_array_shape(arr, target, expand_fixed, ctx),
     }
 }
 
