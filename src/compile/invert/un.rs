@@ -1242,6 +1242,7 @@ inverse!(PrimPat, input, _, Prim(prim, span), {
         Flip => Prim(Flip, span),
         Pop => ImplPrim(UnPop, span),
         Neg => Prim(Neg, span),
+        Recip => Prim(Recip, span),
         Not => Prim(Not, span),
         Sin => ImplPrim(Asin, span),
         Ln => ImplPrim(Exp, span),

@@ -3,16 +3,16 @@ use std::{
     cmp::Ordering,
     fmt,
     hash::{Hash, Hasher},
-    iter::once,
+    iter::{once, repeat_n},
     mem::{size_of, take},
     ops::{Deref, DerefMut},
 };
 
-use ecow::EcoVec;
+use ecow::{EcoString, EcoVec};
 use serde::*;
 
 use crate::{
-    algorithm::{pervade::*, ErrorContext, FillContext}, array::*, cowslice::CowSlice, grid_fmt::GridFmt, Boxed, Complex, CustomInverse, Lambda, Node, Shape, Uiua, UiuaResult
+    algorithm::{pervade::*, ErrorContext, FillContext}, array::*, cowslice::CowSlice, grid_fmt::GridFmt, Boxed, Complex, CustomInverse, Lambda, Node, Shape, SigNode, Uiua, UiuaResult, SUBSCRIPT_DIGITS
 };
 
 /// A generic array value
@@ -1975,6 +1975,40 @@ impl Value {
     }
     /// Raise a value to a power
     pub fn pow(self, base: Self, env: &Uiua) -> UiuaResult<Self> {
+        if let Value::Lambda(lam) = base {
+            let counts = match self {
+                Value::Num(arr) => arr,
+                Value::Byte(arr) => arr.convert(),
+                arr => return Err(env.error(format!("Lambda power expected numbers, but got {}.", arr.type_name_plural())))
+            };
+            return bin_pervade(counts, lam, env, FalliblePerasiveFn::new(|count: f64, lam: Lambda, env: &Uiua| {
+                if count * lam.sn.node.len() as f64 > 1000.0 {
+                    return Err(env.error("Repeated lambda would be too large."));
+                }
+                if count < 0.0 {
+                    return Err(env.error("Repeating a lambda with a negative number is not implemented."));
+                }
+                if count.fract() != 0.0 {
+                    return Err(env.error("Repeating a lambda requires an integer power."));
+                }
+                let mut count = count as usize;
+                if count == 0 {
+                    return Ok(Lambda::default());
+                }
+                let mut sig = lam.sn.sig;
+                for _ in 0..count - 1 {
+                    sig = sig.compose(lam.sn.sig);
+                }
+                let node = Node::from_iter(repeat_n(lam.sn.node, count).flatten());
+                let mut repr = EcoString::from("⛣");
+                while count > 0 {
+                    repr.push(SUBSCRIPT_DIGITS[count % 10]);
+                    count /= 10;
+                }
+                repr.push_str(&lam.repr);
+                Ok(Lambda { sn: SigNode::new(sig, node), repr })
+            })).map(Into::into);
+        }
         if let Ok(pow) = self.as_int(env, None) {
             match pow {
                 1 => return Ok(base),
