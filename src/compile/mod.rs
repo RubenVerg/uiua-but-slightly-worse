@@ -2355,6 +2355,19 @@ impl Compiler {
                             Node::Prim(Add, span),
                         ])
                     }
+                    Identity => {
+                        let n = self.positive_subscript(n, Identity, &span);
+                        if n == 0 { Node::empty() } else {
+                            let span = self.add_span(span);
+                            let mut res = Node::Prim(Identity, span);
+                            let mut sig = 0;
+                            for _ in 0..n { 
+                                res = Node::Mod(Dip, EcoVec::from_iter([SigNode::new((sig, sig), res)]), span);
+                                sig += 1;
+                            }
+                            res
+                        }
+                    }
                     _ => {
                         self.add_error(
                             span.clone(),
