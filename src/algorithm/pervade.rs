@@ -9,7 +9,7 @@ use ecow::eco_vec;
 
 use crate::fill::FillValue;
 use crate::{algorithm::loops::flip, array::*, SigNode, Uiua, UiuaError, UiuaResult, Value};
-use crate::{Complex, Lambda, Shape};
+use crate::{Complex, Lambda, Shape, SUBSCRIPT_DIGITS};
 
 use super::{multi_output, FillContext, MultiOutput};
 
@@ -1077,6 +1077,9 @@ pub mod floor {
     pub fn com(a: Complex) -> Complex {
         a.floor()
     }
+    pub fn lambda(a: Lambda) -> f64 {
+        a.sn.sig.args() as f64
+    }
     pub fn error<T: Display>(a: T, env: &Uiua) -> UiuaError {
         env.error(format!("Cannot get the floor of {a}"))
     }
@@ -1091,6 +1094,9 @@ pub mod ceil {
     }
     pub fn com(a: Complex) -> Complex {
         a.ceil()
+    }
+    pub fn lambda(a: Lambda) -> f64 {
+        a.sn.sig.outputs() as f64
     }
     pub fn error<T: Display>(a: T, env: &Uiua) -> UiuaError {
         env.error(format!("Cannot get the ceiling of {a}"))
@@ -1492,6 +1498,8 @@ pub mod div {
 }
 
 pub mod modulus {
+    use ecow::EcoString;
+
     use super::*;
     pub fn num_num(a: f64, b: f64) -> f64 {
         b.rem_euclid(a).abs()
@@ -1513,6 +1521,18 @@ pub mod modulus {
     }
     pub fn x_com(a: impl Into<f64>, b: Complex) -> Complex {
         b % a.into()
+    }
+    pub fn x_lambda(a: impl Into<f64>, b: Lambda) -> Lambda {
+        let mut n = a.into() as usize;
+        let span = b.sn.node.span().unwrap_or(0);
+        let sn = b.sn.on_all(n, span);
+        let mut repr = EcoString::from("∩");
+        while n > 0 {
+            repr.push(SUBSCRIPT_DIGITS[n % 10]);
+            n /= 10;
+        }
+        repr.push_str(&b.repr);
+        Lambda { sn, repr }
     }
     pub fn error<T: Display>(a: T, b: T, env: &Uiua) -> UiuaError {
         env.error(format!("Cannot modulo {a} and {b}"))

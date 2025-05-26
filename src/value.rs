@@ -1846,6 +1846,7 @@ value_mon_impl!(
     [Num, num],
     [Byte, byte],
     [Complex, com],
+    (Lambda, lambda),
     |val, flags| val.meta.or_sorted_flags(flags)
 );
 value_mon_impl!(
@@ -1853,6 +1854,7 @@ value_mon_impl!(
     [Num, num],
     [Byte, byte],
     [Complex, com],
+    (Lambda, lambda),
     |val, flags| val.meta.or_sorted_flags(flags)
 );
 value_mon_impl!(
@@ -2260,7 +2262,11 @@ value_dy_math_impl!(
     ((Num, Char, num_char), (Byte, Char, byte_char)),
     signed_scalar_sortedness(true)
 );
-value_dy_math_impl!(modulus, ((Complex, Complex, com_com)));
+value_dy_math_impl!(modulus, (
+    (Complex, Complex, com_com)
+    (Num, Lambda, x_lambda),
+    (Byte, Lambda, x_lambda),
+));
 value_dy_math_impl!(or, ([|meta| meta.flags.is_boolean(), Byte, bool_bool]));
 value_dy_math_impl!(scalar_pow);
 value_dy_math_impl!(root);
