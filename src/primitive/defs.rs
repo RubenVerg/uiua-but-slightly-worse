@@ -2256,6 +2256,13 @@ primitive!(
     ///
     /// For more about [under] and inverses, see the [Inverse Tutorial](/tutorial/inverses).
     ([2], Under, InversionModifier, ("under", '⍜')),
+    /// Compose two functions
+    ///
+    /// Apply the right function, and then the left function.
+    ///
+    /// ex: ± ¯ 5
+    ///   : ¨±¯ 5
+    ([2], Bind, Planet, ("bind", AsciiToken::Quote, '¨')),
     /// Call two functions on the same values
     ///
     /// [fork] is one of the most important functions for working with the stack.

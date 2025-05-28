@@ -1027,7 +1027,7 @@ impl<'a> Lexer<'a> {
                 // Backwards compatibility
                 "∶" => self.end(Primitive::Flip, start),
                 "⮌" => self.end(Primitive::Orient, start),
-                "¨" | "𝄈" => self.end(Primitive::Backward, start),
+                "𝄈" => self.end(Primitive::Backward, start),
                 "⍛" => self.end(Primitive::Obverse, start),
                 "◫" => {
                     self.end(Primitive::Stencil, start);

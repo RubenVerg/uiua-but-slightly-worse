@@ -471,6 +471,10 @@ impl Compiler {
                 let sn = self.word_sig(op)?;
                 Node::new_push(crate::Lambda { sn, repr })
             }
+            Bind => {
+                let (f, g, _, _) = self.dyadic_modifier_ops(modified)?;
+                Node::from_iter([g.node, f.node])
+            }
             Gap => {
                 let (SigNode { mut node, .. }, _) = self.monadic_modifier_op(modified)?;
                 let span = self.add_span(modified.modifier.span.clone());
