@@ -86,6 +86,7 @@ pub fn Site() -> impl IntoView {
     };
     visits = visits.overflowing_add(1).0;
 
+    /* 
     // Change the favicon to favicon-crayon.ico every 10 visits
     if visits % 10 == 0 {
         let link = document().create_element("link").unwrap();
@@ -93,10 +94,14 @@ pub fn Site() -> impl IntoView {
         link.set_attribute("href", "/favicon-crayon.ico").unwrap();
         document().head().unwrap().append_child(&link).unwrap();
     }
+    */
+
     (window().local_storage().unwrap().unwrap())
         .set_item("visits", &visits.to_string())
         .unwrap();
 
+    let logo_src = "/assets/uiua-but-slightly-worse-logo.png";
+    /*
     let logo_src = match visits % 9 {
         _ if its_called_weewuh() => "/assets/weewuh-logo.png",
         1 => "/assets/uiua-logo.png",
@@ -106,6 +111,7 @@ pub fn Site() -> impl IntoView {
         _ if Date::new_0().get_month() == 5 => "/assets/uiua-logo-pride.png",
         _ => "/assets/uiua-logo.png",
     };
+    */
 
     let toggle_april_fools_colors = move |_| {
         set_april_fools(!get_april_fools_setting());

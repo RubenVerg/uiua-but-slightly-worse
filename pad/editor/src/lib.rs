@@ -2377,12 +2377,5 @@ pub fn replace_lang_name() -> bool {
 }
 
 pub fn lang() -> &'static str {
-    #[cfg(target_arch = "wasm32")]
-    if its_called_weewuh() {
-        "Weewuh"
-    } else {
-        "Uiua"
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    "Uiua"
+    "Uiua but slightly worse"
 }
