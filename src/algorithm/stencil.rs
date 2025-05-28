@@ -415,7 +415,7 @@ fn adjacent_impl(f: SigNode, xs: Value, n: usize, env: &mut Uiua) -> UiuaResult 
             Primitive::Div => fast_adjacent(nums, n, env, div::num_num),
             Primitive::Modulus if flipped => fast_adjacent(nums, n, env, flip(modulus::num_num)),
             Primitive::Modulus => fast_adjacent(nums, n, env, modulus::num_num),
-            Primitive::Or => fast_adjacent(nums, n, env, or::num_num),
+            Primitive::GCD => fast_adjacent(nums, n, env, or::num_num),
             Primitive::Atan if flipped => fast_adjacent(nums, n, env, flip(atan2::num_num)),
             Primitive::Atan => fast_adjacent(nums, n, env, atan2::num_num),
             Primitive::Max => fast_adjacent(nums, n, env, max::num_num),

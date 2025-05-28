@@ -412,25 +412,20 @@ primitive!(
     /// If you prefer the negative modulo instead of the remainder, you may use [under]:
     /// ex: ⍜⊙⌵◿ 4 ¯21
     (2, Modulus, DyadicPervasive, ("modulus", '◿')),
-    /// Logical OR and greatest common divisor
+    /// Greatest common divisor
     ///
-    /// ex: # Experimental!
-    ///   : ∨ [0 1 0 1] [0 0 1 1]
-    /// ex: # Experimental!
-    ///   : ⊞∨.[0 1]
-    /// Non-boolean values give the GCD.
-    /// ex: # Experimental!
-    ///   : ∨ 16 24
-    /// ex: # Experimental!
-    ///   : ∨ 51 85
-    /// The [reduce] identity of [or] is `0`. This makes it better than [maximum] as a logical OR.
-    /// ex: # Experimental!
-    ///   : /∨ []
-    /// ex: # Experimental!
-    ///   : [⊃/∨/↥] [0 0]
+    /// ex: ∨ 16 24
+    /// ex: ∨ 51 85
+    /// Boolean values give logical OR.
+    /// ex: ∨ [0 1 0 1] [0 0 1 1]
+    /// ex: ⊞∨.[0 1]
+    /// 
+    /// The [reduce] identity of [gcd] is `0`. This makes it better than [maximum] as a logical OR.
+    /// ex: /∨ []
+    /// ex: [⊃/∨/↥] [0 0]
     ///   : [⊃/∨/↥] [0]
     ///   : [⊃/∨/↥] []
-    (2, Or, DyadicPervasive, ("or", '∨'), { experimental: true }),
+    (2, GCD, DyadicPervasive, ("gcd", '∨')),
     /// Raise a value to a power
     ///
     /// The second value is raised to the power of the first.

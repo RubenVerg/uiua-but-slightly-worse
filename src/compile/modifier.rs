@@ -2059,7 +2059,7 @@ impl Compiler {
             Prim(Mul, span) => *node = op(GeometricProduct, span),
             Prim(Max, span) => *node = op(GeometricInner, span),
             Prim(Min, span) => *node = op(GeometricWedge, span),
-            Prim(Or, span) => *node = op(GeometricRegressive, span),
+            Prim(GCD, span) => *node = op(GeometricRegressive, span),
             Prim(Div, span) => *node = op(GeometricDivide, span),
             Prim(Abs, span) => *node = op(GeometricMagnitude, span),
             Prim(Sign, span) => *node = op(GeometricNormalize, span),

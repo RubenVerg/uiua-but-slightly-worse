@@ -98,7 +98,7 @@ pub(crate) fn reduce_impl(f: SigNode, depth: usize, env: &mut Uiua) -> UiuaResul
                     fast_reduce_different(bytes, 1.0, fill, depth, mul::num_num, mul::num_byte)
                         .into()
                 }
-                Primitive::Or => {
+                Primitive::GCD => {
                     let byte_fill = env.scalar_fill::<u8>().ok().map(|fv| fv.value);
                     if fill.is_some() && byte_fill.is_none() {
                         fast_reduce_different(bytes, 0.0, fill, depth, or::num_num, or::num_byte)
@@ -349,7 +349,7 @@ macro_rules! reduce_math {
                 #[cfg(feature = "opt")]
                 Primitive::Sub => fast_reduce(xs, 0.0.into(), fill, depth, sub::$f),
                 Primitive::Mul => fast_reduce(xs, 1.0.into(), fill, depth, mul::$f),
-                Primitive::Or => fast_reduce(xs, 0.0.into(), fill, depth, or::$f),
+                Primitive::GCD => fast_reduce(xs, 0.0.into(), fill, depth, or::$f),
                 Primitive::Min if TID == 0 && xs.rank() == 1 && xs.meta.is_sorted_up() => {
                     (xs.data.first().copied())
                         .unwrap_or(f64::INFINITY.into())
