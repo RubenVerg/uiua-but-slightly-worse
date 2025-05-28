@@ -2162,30 +2162,23 @@ impl Compiler {
         use Primitive::*;
         Ok(match prim {
             prim if prim.class() == PrimClass::DyadicPervasive => {
-                let Some(nos) = self.subscript_n_or_side(&scr, prim.format()) else {
+                let Some(side) = self.subscript_side_only(&scr, prim.format()) else {
                     return Ok(self.primitive(prim, span));
                 };
-                match nos {
-                    SubNOrSide::N(n) => {
-                        Node::from_iter([Node::new_push(n), self.primitive(prim, span)])
-                    }
-                    SubNOrSide::Side(side) => {
-                        self.experimental_error_it(&scr.span, || {
-                            format!("Sided {}", prim.format())
-                        });
-                        let sub_span = self.add_span(scr.span);
-                        let mut node = Node::Prim(Primitive::Fix, sub_span);
-                        if side == SubSide::Right {
-                            node = Node::Mod(
-                                Primitive::Dip,
-                                eco_vec![node.sig_node().unwrap()],
-                                sub_span,
-                            );
-                        }
-                        node.push(self.primitive(prim, span));
-                        node
-                    }
+                self.experimental_error_it(&scr.span, || {
+                        format!("Sided {}", prim.format())
+                    });
+                let sub_span = self.add_span(scr.span);
+                let mut node = Node::Prim(Primitive::Fix, sub_span);
+                if side == SubSide::Right {
+                    node = Node::Mod(
+                        Primitive::Dip,
+                        eco_vec![node.sig_node().unwrap()],
+                        sub_span,
+                    );
                 }
+                node.push(self.primitive(prim, span));
+                node
             }
             EncodeBytes => {
                 let Some(side) = self.subscript_side_only(&scr, EncodeBytes.format()) else {
