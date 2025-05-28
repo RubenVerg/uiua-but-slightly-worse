@@ -2320,6 +2320,7 @@ value_dy_math_impl!(
     )
 );
 value_dy_math_impl!(or, ([|meta| meta.flags.is_boolean(), Byte, bool_bool]));
+value_dy_math_impl!(and, ([|meta| meta.flags.is_boolean(), Byte, bool_bool]));
 value_dy_math_impl!(scalar_pow);
 value_dy_math_impl!(root);
 value_dy_math_impl!(log);

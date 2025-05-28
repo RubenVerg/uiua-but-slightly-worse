@@ -1619,7 +1619,46 @@ pub mod or {
         Complex::new(num_num(a.re, b.re), num_num(a.im, b.im))
     }
     pub fn error<T: Display>(a: T, b: T, env: &Uiua) -> UiuaError {
-        env.error(format!("Cannot or {a} and {b}"))
+        env.error(format!("Cannot take the GCD of {a} and {b}"))
+    }
+}
+
+pub mod and {
+    use super::*;
+
+    pub fn num_num(a: f64, b: f64) -> f64 {
+        if a == 0.0 && b == 0.0 {
+            0.0
+        } else {
+            a * b / or::num_num(a, b)
+        }
+    }
+    pub fn num_byte(a: f64, b: u8) -> f64 {
+        num_num(b.into(), a)
+    }
+    pub fn byte_num(a: u8, b: f64) -> f64 {
+        num_num(a.into(), b)
+    }
+    pub fn byte_byte(a: u8, b: u8) -> f64 {
+        if a == 0 && b == 0 {
+            0.0
+        } else {
+            (a as f64) * (b as f64) / (or::byte_byte(a, b) as f64)
+        }
+    }
+    pub fn bool_bool(a: u8, b: u8) -> u8 {
+        a & b
+    }
+    pub fn com_x(a: Complex, b: impl Into<Complex>) -> Complex {
+        let b = b.into();
+        a * b / or::com_x(a, b)
+    }
+    pub fn x_com(a: impl Into<Complex>, b: Complex) -> Complex {
+        let a = a.into();
+        a * b / or::x_com(a, b)
+    }
+    pub fn error<T: Display>(a: T, b: T, env: &Uiua) -> UiuaError {
+        env.error(format!("Cannot take the LCM of {a} and {b}"))
     }
 }
 

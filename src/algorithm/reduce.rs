@@ -109,6 +109,15 @@ pub(crate) fn reduce_impl(f: SigNode, depth: usize, env: &mut Uiua) -> UiuaResul
                         fast_reduce(bytes, 0, byte_fill, depth, or::byte_byte).into()
                     }
                 }
+                Primitive::LCM if bytes.meta.flags.is_boolean() => {
+                    let byte_fill = env.scalar_fill::<u8>().ok().map(|fv| fv.value);
+                    if bytes.row_count() == 0 || fill.is_some() && byte_fill.is_none() {
+                        fast_reduce_different(bytes, 1.0, fill, depth, and::num_num, and::num_byte)
+                            .into()
+                    } else {
+                        fast_reduce(bytes, 1, byte_fill, depth, and::bool_bool).into()
+                    }
+                }
                 Primitive::Min => {
                     if bytes.rank() == 1 {
                         if bytes.meta.is_sorted_up() {

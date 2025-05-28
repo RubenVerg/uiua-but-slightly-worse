@@ -585,6 +585,7 @@ impl Primitive {
             Primitive::Div => env.dyadic_oo_env(Value::div)?,
             Primitive::Modulus => env.dyadic_oo_env(Value::modulus)?,
             Primitive::GCD => env.dyadic_oo_env(Value::or)?,
+            Primitive::LCM => env.dyadic_oo_env(Value::and)?,
             Primitive::Pow => env.dyadic_oo_env(Value::pow)?,
             Primitive::Log => env.dyadic_oo_env(Value::log)?,
             Primitive::Min => env.dyadic_oo_env(Value::min)?,

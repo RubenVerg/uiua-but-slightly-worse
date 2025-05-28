@@ -426,6 +426,20 @@ primitive!(
     ///   : [⊃/∨/↥] [0]
     ///   : [⊃/∨/↥] []
     (2, GCD, DyadicPervasive, ("gcd", '∨')),
+    /// Least common multiple
+    ///
+    /// ex: ∧ 16 24
+    /// ex: ∧ 51 85
+    /// Boolean values give logical AND.
+    /// ex: ∧ [0 1 0 1] [0 0 1 1]
+    /// ex: ⊞∧.[0 1]
+    ///
+    /// The [reduce] identity of [lcm] is `1`. This makes it better than [minimum] as a logical AND.
+    /// ex: /∧ []
+    /// ex: [⊃/∧/↧] [1 1]
+    ///   : [⊃/∧/↧] [1]
+    ///   : [⊃/∧/↧] []
+    (2, LCM, DyadicPervasive, ("lcm", '∧')),
     /// Raise a value to a power
     ///
     /// The second value is raised to the power of the first.
