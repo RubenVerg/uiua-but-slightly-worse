@@ -118,13 +118,6 @@ primitive!(
     /// Sometimes it is also good with [group] or [partition]
     /// ex: ⊜⧻.[1 1 0 0 2 2 2 2 0 1 0 3 3]
     (1(2), Dup, Stack, ("duplicate", '.')),
-    /// Duplicate the second-to-top value to the top of the stack
-    ///
-    /// ex: [, 1 2 3 4 5]
-    ///
-    /// [over] is often used in examples of functions with two inputs to show both inputs and the output.
-    /// ex: [+,, +3 4 5]
-    (2(3), Over, Stack, ("over", ',')),
     /// Swap the top two values on the stack
     ///
     /// ex: [: 1 2 3 4 5]
@@ -1428,7 +1421,7 @@ primitive!(
     (2, Base, DyadicArray, ("base", '⊥')),
     /// Invoke a lambda
     /// 
-    /// After creating a [lambda], you can call it with [invoke].
+    /// After creating a [lambda], you can call it with [call].
     /// Because the length of the stack must be known at compile time, arguments are taken in a boxed array and results are returned in a box array.
     /// The first argument is the arguments to the lambda and the second argument is the lambda itself.
     /// ex: ⋌{3 2}⋋+
@@ -3038,7 +3031,7 @@ primitive!(
     ///   : ⊓$Path$Cost
     /// As stated before, the costs can be omitted. Notice [un][box]ing is not necessary in this case, and a cost is not returned.
     /// ex: ⊢ path(+A₂¤)≍ 0_0 3_5
-    /// In the examples above, we use [first] to get only the first path. [first][path] and [pop][path] are optimized to not do extra work.
+    /// In the examples above, we use [first] to get only the first path. [first][path], [pop][path] and [sign][length][path] are optimized to not do extra work.
     /// If we want *all* shortest paths, we can omit [first].
     /// ex: path(+A₂¤)≍ 0_0 1_2
     /// If pathing on a grid like the examples above, we can use [un][where] to visualize the path that was taken!
@@ -3705,9 +3698,11 @@ impl_primitive!(
     (1, CountUnique),
     ((2)[3], Astar),
     ((2)[3], AstarFirst),
+    ((2)[3], AstarSignLen),
     ((1)[3], AstarPop),
     ((1)[3], AstarTake),
     ((2)[2], PathFirst),
+    ((2)[3], PathSignLen),
     ((1)[2], PathPop),
     ((1)[2], PathTake),
     (2[1], SplitByScalar),
@@ -3717,6 +3712,7 @@ impl_primitive!(
     (2, MatrixDiv),
     (2, RangeStart),
     // Implementation details
+    (2(3), Over),
     (1, NBits(usize)),
     (1, DeshapeSub(i32)),
     (1, TransposeN(i32)),

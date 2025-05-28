@@ -955,12 +955,6 @@ impl Parser<'_> {
                 match (&prev.value, &word.value) {
                     (Word::Primitive(a), Word::Primitive(b)) => {
                         match (a, b) {
-                            (Over, Flip) => self.diagnostics.push(Diagnostic::new(
-                                format!("Prefer `{On}{Flip}` over `{Over}{Flip}` for clarity"),
-                                span(),
-                                DiagnosticKind::Style,
-                                self.inputs.clone(),
-                            )),
                             // Not comparisons
                             (Not, prim) => {
                                 for (a, b) in [(Eq, Ne), (Lt, Ge), (Gt, Le)] {
@@ -1391,6 +1385,7 @@ impl Parser<'_> {
             let s = &self.input[span.byte_range()];
             let s = match &r {
                 Ok(_) if s.contains(['e', 'E']) => s.into(),
+                Ok(_) if s.contains('.') && s.ends_with('0') => s.into(),
                 Ok(n) => n.to_string().replace('-', "¯"),
                 Err(_) => s.into(),
             };

@@ -774,6 +774,7 @@ pub enum AsciiToken {
     GreaterEqual,
     Backtick,
     Tilde,
+    Quote,
 }
 
 impl fmt::Display for AsciiToken {
@@ -800,6 +801,7 @@ impl fmt::Display for AsciiToken {
             AsciiToken::GreaterEqual => write!(f, ">="),
             AsciiToken::Backtick => write!(f, "`"),
             AsciiToken::Tilde => write!(f, "~"),
+            AsciiToken::Quote => write!(f, "'"),
         }
     }
 }
@@ -1049,8 +1051,8 @@ impl<'a> Lexer<'a> {
                         self.end(Underscore, start)
                     }
                 }
-                "'" => {
-                    let sub = self.subscript("'");
+                "," => {
+                    let sub = self.subscript(",");
                     self.end(Subscr(sub), start)
                 }
                 "^" if self.next_char_exact("^") => {
@@ -1064,6 +1066,7 @@ impl<'a> Lexer<'a> {
                 ";" if self.next_char_exact(";") => self.end(DoubleSemicolon, start),
                 ";" => self.end(Semicolon, start),
                 "~" => self.end(Tilde, start),
+                "'" => self.end(Quote, start),
                 "`" => {
                     if self.number("-") {
                         self.end(Number, start)
@@ -1450,7 +1453,7 @@ impl<'a> Lexer<'a> {
                 *too_large |= overflow;
                 *num = new_num;
                 *can_parse_ascii = false;
-            } else if self.next_chars_exact(["_"; 2]) || self.next_char_exact("'") {
+            } else if self.next_chars_exact(["_"; 2]) || self.next_char_exact(",") {
                 *can_parse_ascii = true;
             } else {
                 break;
@@ -1468,7 +1471,7 @@ impl<'a> Lexer<'a> {
             "⌞" => side = Some(SubSide::Left),
             "⌟" => side = Some(SubSide::Right),
             "₋" => got_neg = true,
-            "__" | "'" => can_parse_ascii = true,
+            "__" | "," => can_parse_ascii = true,
             c if c.chars().all(|c| SUBSCRIPT_DIGITS.contains(&c)) => {
                 num = SUBSCRIPT_DIGITS
                     .iter()
@@ -1681,7 +1684,7 @@ impl<'a> Lexer<'a> {
 #[allow(dead_code)]
 pub(crate) fn subscript(s: &str) -> Option<(Subscript, &str)> {
     let mut lexer = Lexer::new(s, InputSrc::Literal(s.into()));
-    let sub = lexer.subscript("'");
+    let sub = lexer.subscript(",");
     if sub.num.is_some() || sub.side.is_some() {
         let rest = &s[lexer.loc.byte_pos as usize..];
         Some((sub, rest))
@@ -1758,14 +1761,14 @@ fn place_exclams(ident: &str, count: usize) -> Ident {
     new
 }
 
-/// Rewrite the identifier with numerals preceded by `'` replaced with subscript characters
+/// Rewrite the identifier with numerals preceded by `,` replaced with subscript characters
 fn canonicalize_subscripts(ident: Ident) -> Ident {
-    if !ident.contains('_') {
+    if !ident.contains(',') {
         return ident;
     }
     // This hasty canonicalization is okay because the stricter
     // rules about the syntax are handled in the lexer
-    (ident.chars().filter(|c| *c != '_'))
+    (ident.chars().filter(|c| *c != ','))
         .map(|c| {
             if let Some(d) = c.to_digit(10) {
                 crate::lex::SUBSCRIPT_DIGITS[d as usize]

@@ -1923,7 +1923,7 @@ F ← |2 +
 F ← (|2
   +
 )
-+'
++,
 ∘ M! =
 ~ \"x\" ~ A B
 ~ \"x\"
@@ -1995,7 +1995,7 @@ F ← (
 #[cfg(test)]
 fn formatter_correctness() {
     let input = "\
-F'1
+F,1
 \\\\25cb
 ";
     let output = "\

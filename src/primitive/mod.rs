@@ -320,9 +320,11 @@ impl fmt::Display for ImplPrimitive {
             MatchGe => write!(f, "match ≥"),
             Astar => write!(f, "{Path}"),
             AstarFirst => write!(f, "{First}{Astar}"),
+            AstarSignLen => write!(f, "{Sign}{Len}{Astar}"),
             AstarTake => write!(f, "{Take}…{Astar}"),
             AstarPop => write!(f, "{Pop}{Astar}"),
             PathFirst => write!(f, "{First}{Path}"),
+            PathSignLen => write!(f, "{Sign}{Len}{Path}"),
             PathTake => write!(f, "{Take}…{Path}"),
             PathPop => write!(f, "{Pop}{Path}"),
             SplitByScalar => write!(f, "{Partition}{Box}{By}{Ne}"),
@@ -375,6 +377,7 @@ impl fmt::Display for ImplPrimitive {
             UnBothImpl(sub) => write!(f, "{Un}{Both}{sub}"),
             Retropose => write!(f, "<{Evert}>"),
             Ga(op, _) => op.fmt(f),
+            Over => write!(f, "over"),
         }
     }
 }
@@ -533,7 +536,6 @@ impl Primitive {
                 Deshape.format()
             ),
             Windows => format!("use {} {} instead", Stencil.format(), Identity.format()),
-            Over => format!("use {} or {} instead", Below.format(), Fork.format()),
             Each => format!("use {} instead", Rows.format()),
             Tag => "use data variants instead".into(),
             _ => return None,
@@ -678,13 +680,6 @@ impl Primitive {
             Primitive::Flip => {
                 let a = env.pop(1)?;
                 let b = env.pop(2)?;
-                env.push(a);
-                env.push(b);
-            }
-            Primitive::Over => {
-                let a = env.pop(1)?;
-                let b = env.pop(2)?;
-                env.push(b.clone());
                 env.push(a);
                 env.push(b);
             }
@@ -1639,6 +1634,13 @@ impl ImplPrimitive {
                 let res = tag.join(val, false, env)?;
                 env.push(res);
             }
+            ImplPrimitive::Over => {
+                let a = env.pop(1)?;
+                let b = env.pop(2)?;
+                env.push(b.clone());
+                env.push(a);
+                env.push(b);
+            }
             &ImplPrimitive::Ga(op, spec) => match op {
                 GaOp::GeometricProduct => env.dyadic_oo_env_with(spec, ga::product)?,
                 GaOp::GeometricInner => env.dyadic_oo_env_with(spec, ga::inner_product)?,
@@ -1727,6 +1729,10 @@ impl ImplPrimitive {
                 let [neighbors, heuristic, is_goal] = get_ops(ops, env)?;
                 path::path_first(neighbors, is_goal, Some(heuristic), env)?;
             }
+            ImplPrimitive::AstarSignLen => {
+                let [neighbors, heuristic, is_goal] = get_ops(ops, env)?;
+                path::path_sign_len(neighbors, is_goal, Some(heuristic), env)?;
+            }
             ImplPrimitive::AstarTake => {
                 let [neighbors, heuristic, is_goal] = get_ops(ops, env)?;
                 path::path_take(neighbors, is_goal, Some(heuristic), env)?;
@@ -1738,6 +1744,10 @@ impl ImplPrimitive {
             ImplPrimitive::PathFirst => {
                 let [neighbors, is_goal] = get_ops(ops, env)?;
                 path::path_first(neighbors, is_goal, None, env)?;
+            }
+            ImplPrimitive::PathSignLen => {
+                let [neighbors, is_goal] = get_ops(ops, env)?;
+                path::path_sign_len(neighbors, is_goal, None, env)?;
             }
             ImplPrimitive::PathTake => {
                 let [neighbors, is_goal] = get_ops(ops, env)?;
@@ -2772,7 +2782,7 @@ mod tests {
 	"repository": {{
         "idents": {{
             "name": "variable.parameter.uiua",
-            "match": "\\b[a-zA-Z]+(₋?[₀₁₂₃₄₅₆₇₈₉]|__'`?\\d+)*[!‼]*\\b"
+            "match": "\\b[a-zA-Z]+(₋?[₀₁₂₃₄₅₆₇₈₉]|,`?\\d+)*[!‼]*\\b"
         }},
 		"comments": {{
 			"name": "comment.line.uiua",

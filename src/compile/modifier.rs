@@ -625,7 +625,9 @@ impl Compiler {
                         ),
                         SubSide::Right => Node::Mod(
                             Dip,
-                            eco_vec![Node::Prim(Over, sub_span).sig_node().unwrap()],
+                            eco_vec![Node::ImplPrim(ImplPrimitive::Over, sub_span)
+                                .sig_node()
+                                .unwrap()],
                             sub_span,
                         ),
                     };
@@ -2083,8 +2085,8 @@ impl Compiler {
                     spec.metrics = metrics;
                 }
             }
-            Prim(Identity | Dup | Flip | Over | Pop | Stack | Sys(_), _) => {}
-            ImplPrim(StackN { .. }, _) => {}
+            Prim(Identity | Dup | Flip | Pop | Stack | Sys(_), _) => {}
+            ImplPrim(Over | StackN { .. }, _) => {}
             Push(_) | Array { .. } => {}
             Mod(
                 (Fork | Bracket | Both)

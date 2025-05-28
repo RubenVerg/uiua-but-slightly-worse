@@ -1514,9 +1514,12 @@ impl SysOp {
                 let bytes: Vec<u8> = match data {
                     Value::Num(arr) => arr.data.iter().map(|&x| x as u8).collect(),
                     Value::Byte(arr) => arr.data.into(),
-
                     Value::Char(arr) => arr.data.iter().collect::<String>().into(),
-                    val => return Err(env.error(format!("Cannot write {} array to file", val.type_name()))),
+                    val => {
+                        return Err(
+                            env.error(format!("Cannot write {} array to file", val.type_name()))
+                        )
+                    }
                 };
                 (env.rt.backend)
                     .file_write_all(path.as_ref(), &bytes)
@@ -1930,7 +1933,7 @@ impl SysOp {
                     let samples = samples.as_num_array().ok_or_else(|| {
                         stream_env.error("Audio stream function must return a numeric array")
                     })?;
-                    match samples.shape.dims() {
+                    match &*samples.shape {
                         [_] => Ok(samples.data.iter().map(|&x| [x, x]).collect()),
                         &[n, 2] => {
                             let mut samps: Vec<[f64; 2]> = Vec::with_capacity(n);
@@ -2017,10 +2020,10 @@ fn value_to_command(value: &Value, env: &Uiua) -> UiuaResult<(String, Vec<String
                 )))
             }
         },
-        _ => {
+        val => {
             return Err(env.error(format!(
                 "Command must be a string or box array, but it is {}",
-                value.type_name_plural()
+                val.type_name_plural()
             )))
         }
     }
