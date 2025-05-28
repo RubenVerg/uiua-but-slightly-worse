@@ -1,7 +1,7 @@
 
 <img src="site/assets/uiua-but-worse-logo.png" width="140"/> 
 
-# Uiua
+# Uiua but slightly worse
 
 Uiua (pronounced *"wee-wuh"*) is a stack-based array programming language.
 

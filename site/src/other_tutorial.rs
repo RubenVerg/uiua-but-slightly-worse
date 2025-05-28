@@ -337,7 +337,7 @@ fn EvenMoreStack() -> impl IntoView {
         <p>"Use "<Prim prim=Below/>" when you want to call a function without disturbing the stack "<em>"at all"</em>"."</p>
         <p><Prim prim=By/>" is generally prefered for monadic functions on a single argument, but "<Prim prim=Below/>" is useful for the more general case."</p>
         <p>"For example, here, we use "<Prim prim=Below/>" to retrieve the "<Prim prim=Shape/>"s of two arrays so that we can scale one array to the size of the other."</p>
-        <Editor example="∧(⍉▽)÷◡∩△ [1_2 3_4] °△4_6"/>
+        <Editor example="⌿(⍉▽)÷◡∩△ [1_2 3_4] °△4_6"/>
         <p>"For a simpler example, we can use "<Prim prim=Below/>" with "<Prim prim=Gap/>" to call a function on a value further down the stack."</p>
         <Editor example="◡⋅⧻ 1_2_3 \"hello!\""/>
         <p>"This leaves the output of the function on "<em>"top"</em>" of the stack, and leaves the input to the function alone, unlike "<Prim prim=Dip/>" would."</p>

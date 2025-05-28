@@ -1467,8 +1467,8 @@ primitive!(
     ///
     /// Expects as many arguments as its function takes.
     /// In the simplest case, [fold] can be used to [reduce] an array with a default value.
-    /// ex: ∧+ [1 2 3] 10
-    ///   : ∧+ [] 10
+    /// ex: ⌿+ [1 2 3] 10
+    ///   : ⌿+ [] 10
     ///
     /// If the function takes at least 1 more argument than it returns:
     /// Arguments that are lower on the stack that will be used as accumulators.
@@ -1479,16 +1479,16 @@ primitive!(
     /// On each iteration, the returned values will be used as the new accumulators.
     ///
     /// Multiple accumulators can be used
-    /// ex: ∧(⊃+(×⊙⋅∘)) +1⇡5 0 1
+    /// ex: ⌿(⊃+(×⊙⋅∘)) +1⇡5 0 1
     /// If the iterated array is already on the stack, you can use [dip] to place the accumulators below it.
-    /// ex: ∧(⊃+(×⊙⋅∘))⊙(0 1) +1⇡5
+    /// ex: ⌿(⊃+(×⊙⋅∘))⊙(0 1) +1⇡5
     ///
     /// Multiple iterated arrays are also fine.
     /// Here, we accumulate the first array with [add] and the second with [multiply].
-    /// ex: ∧⊃(+⊙⋅∘|×⋅⊙⋅∘) 1_2_3 4_5_6 0 1
+    /// ex: ⌿⊃(+⊙⋅∘|×⋅⊙⋅∘) 1_2_3 4_5_6 0 1
     ///
     /// Like [rows], [fold] will repeat the row of arrays that have exactly one row.
-    /// ex: ∧(⊂⊂) 1_2_3 4 []
+    /// ex: ⌿(⊂⊂) 1_2_3 4 []
     ///
     /// If the function returns the same or more values than it takes as arguments:
     /// There will be exactly one iterated array. The rest of the arguments will be used as accumulators.
@@ -1497,10 +1497,10 @@ primitive!(
     ///
     /// For example, [scan] can be manually reimplemented by [duplicate]ing the result of the function.
     /// ex: # Experimental!
-    ///   : ∧(.+) [1 2 3 4 5] 0
+    ///   : ⌿(.+) [1 2 3 4 5] 0
     /// ex: # Experimental!
-    ///   : ∧(◡⊙∘⊓⌞+×) [1 2 3 4 5] 0 1
-    ([1], Fold, AggregatingModifier, ("fold", '∧')),
+    ///   : ⌿(◡⊙∘⊓⌞+×) [1 2 3 4 5] 0 1
+    ([1], Fold, AggregatingModifier, ("fold", '⌿')),
     /// Reduce, but keep intermediate values
     ///
     /// ex: \+   1_2_3_4
@@ -3412,7 +3412,7 @@ primitive!(
     ///   : ⍜⊢⋅1
     ///   : [1_0_0 1_2_2 2_2_2 2_2_3 2_2_4]
     ///   : [[1 1][1 1][1 0.3][1 0.3][1 0.3]]
-    ///   : ∧⍜⊙⊡⊙◌
+    ///   : ⌿⍜⊙⊡⊙◌
     ///   : voxels {20 [1.2 2 0.5] Black}
     /// Color is also supported.
     /// ex: # Experimental!
@@ -3420,7 +3420,7 @@ primitive!(
     ///   : ⍜⊢⋅1
     ///   : [1_0_0 1_2_2 2_2_2 2_2_3 2_2_4]
     ///   : [[1 1 1 1][1 1 1 1][1 0 0 0.3][0 1 0 0.3][0 1 1 0.3]]
-    ///   : ∧⍜⊙⊡⊙◌
+    ///   : ⌿⍜⊙⊡⊙◌
     ///   : voxels {20 [1 2 0.5] Black}
     ///
     /// Like with normal image arrays, [voxels] supports complex numbers.
