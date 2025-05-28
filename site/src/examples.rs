@@ -55,7 +55,7 @@ pub const WEEWUH_PALINDROME: &str = r#"$ weewuh racecar wow cool!
 ≡⊂ ˜⊏"❌✅" ⬚@ ⊜⊸(≍⊸⇌)⊸≠@ "#;
 const AUTOMATA: &str = "\
 Rule ← ˜⊏⊓⋯₈(°⋯⧈⇌3⊂⊂⊃⊣⟜⊢)
-=⌊⊃÷₂⇡ 500        # Init
+=⌊⊃÷²⇡ 500        # Init
 ⍥⟜⊸Rule ⌊÷2◡⋅⧻ 30 # Run";
 const ROMAN: &str = r#"K ← "IVXLCDM"
 N ← [1 5 10 50 100 500 1000]
@@ -67,7 +67,7 @@ const MANDELBROT: &str = "\
 >2⌵ ⍥⟜⊸(+⊙°√) 50 .    # Run
 ÷⧻⟜/+                 # Normalize";
 const LIFE: &str = "\
-Life ← ↥∩=₃⟜+⊸(/+↻⊂A₂C₂)
+Life ← ↥∩=³⟜+⊸(/+↻⊂A₂C₂)
 ⁅×0.6 gen⊙⚂ ˙⊟30 # Init
 ⍥⊸Life100        # Run
 ≡(▽⟜≡▽) 4        # Upscale";

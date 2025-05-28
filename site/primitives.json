@@ -466,6 +466,13 @@
     "description": "Convert a value to a byte representation",
     "experimental": true
   },
+  "call": {
+    "glyph": "⋌",
+    "args": 2,
+    "outputs": 1,
+    "class": "Misc",
+    "description": "Invoke a lambda"
+  },
   "case": {
     "glyph": "⍩",
     "outputs": 1,
@@ -846,6 +853,14 @@
     "class": "DyadicArray",
     "description": "Discard or copy some rows of an array"
   },
+  "lambda": {
+    "glyph": "⋋",
+    "args": 0,
+    "outputs": 1,
+    "modifier_args": 1,
+    "class": "OtherModifier",
+    "description": "Wrap a function into a lambda"
+  },
   "last": {
     "glyph": "⊣",
     "args": 1,
@@ -1152,6 +1167,13 @@
     "class": "Planet",
     "description": "Call a function on the first and third values on the stack",
     "experimental": true
+  },
+  "reciprocal": {
+    "glyph": "⨪",
+    "args": 1,
+    "outputs": 1,
+    "class": "MonadicPervasive",
+    "description": "Take the reciprocal of a number"
   },
   "recv": {
     "args": 1,

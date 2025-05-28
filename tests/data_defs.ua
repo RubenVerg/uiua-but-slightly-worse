@@ -74,7 +74,7 @@ S~PushB
   ~Sum        ← AddBar Baz # ? Foo
   ~WithBarSum ← Foo~Sum New 10 Baz
   ~WithBar    ← Self °Bar
-  ~IncrBar    ← Self⍜Bar+₁
+  ~IncrBar    ← Self⍜Bar+¹
   ~Add        ← Foo ⊃(+Bar Foo~Bar|+Baz Foo~Baz)
 └─╴
 ⍤⤙≍ 13 Foo~AddBar 10 Foo 3 5

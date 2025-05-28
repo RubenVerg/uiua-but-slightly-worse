@@ -51,7 +51,7 @@ pub(crate) mod enabled {
             "AUTOMATA",
             "\
 Rule ← ˜⊏⊓⋯₈(°⋯⧈⇌3⊂⊂⊃⊣⟜⊢)
-=⌊⊃÷₂⇡ 500        # Init
+=⌊⊃÷²⇡ 500        # Init
 ⍥⟜⊸Rule ⌊÷2◡⋅⧻ 30 # Run",
         ),
         (
@@ -81,7 +81,7 @@ A ← ×⊃U(I1) # Alpha
         (
             "LIFE",
             "\
-Life ← ↥∩=₃⟜+⊸(/+↻⊂A₂C₂)
+Life ← ↥∩=³⟜+⊸(/+↻⊂A₂C₂)
 ⁅×0.6 gen⊙⚂ ⊟.30 # Init
 ⍥⊸Life100        # Run
 ≡(▽⟜≡▽) 4        # Upscale",
