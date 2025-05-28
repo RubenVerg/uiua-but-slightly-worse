@@ -18,9 +18,9 @@ pub const WEEWUH: &str = "\
 ⊜⊢   # All first letters";
 const PRIMES: &str = "\
 # Click Run to format!
-+1drop1range40   # Range 2 to 40
-deshapebytable*. # List of products
-keepnotbymember  # Keep not in list";
++1drop1range40     # Range 2 to 40
+deshapebytablemul. # List of products
+keepnotbymember    # Keep not in list";
 pub const LOGO: &str = "\
 U ← /=⊞<0.2_0.7 /+×⟜ⁿ1_2
 I ← <⊙(⌵/ℂ) # Circle

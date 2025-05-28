@@ -26,12 +26,12 @@ Now, I can already hear you asking, *"Wait, what is that funny arrow? How am I s
 
 Unlike some other array languages, Uiua does not require a special keyboard configuration or an editor with custom keybindings. Instead, you can type either the ASCII symbol or the name of a built-in function, then the Uiua formatter will convert it to the correct Unicode glyph.
 
-In this case, the ASCII symbol for multiplication is `*` and the name of the funny arrow is [range](/docs/range).
+In this case, the ASCII symbol for multiplication is [multiply](/docs/multiply) and the name of the funny arrow is [range](/docs/range).
 
 On this website, you can format by clicking **Run** or by pressing **Ctrl+Enter** with the cursor in the text area. Try it out!
 
 ```uiua
-+1*2 range10
++1multiply2 range10
 ```
 
 You don't even have to type the whole name of a built-in function, just enough to disambiguate it from the others.

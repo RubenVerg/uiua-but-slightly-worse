@@ -424,6 +424,14 @@
     "description": "Encode an array into a compact binary representation",
     "experimental": true
   },
+  "bind": {
+    "ascii": "'",
+    "glyph": "¨",
+    "outputs": 1,
+    "modifier_args": 2,
+    "class": "Planet",
+    "description": "Compose two functions"
+  },
   "bits": {
     "glyph": "⋯",
     "args": 1,
@@ -563,7 +571,6 @@
     "description": "Temporarily pop the top value off the stack and call a function"
   },
   "divide": {
-    "ascii": "%",
     "glyph": "÷",
     "args": 2,
     "outputs": 1,
@@ -698,7 +705,7 @@
     "description": "Round to the nearest integer towards ¯∞"
   },
   "fold": {
-    "glyph": "∧",
+    "glyph": "⌿",
     "outputs": 1,
     "modifier_args": 1,
     "class": "AggregatingModifier",
@@ -717,6 +724,13 @@
     "modifier_args": 1,
     "class": "Planet",
     "description": "Discard the top stack value then call a function"
+  },
+  "gcd": {
+    "glyph": "∨",
+    "args": 2,
+    "outputs": 1,
+    "class": "DyadicPervasive",
+    "description": "Greatest common divisor"
   },
   "gen": {
     "args": 2,
@@ -875,6 +889,13 @@
     "description": "Render text into an image array",
     "experimental": true
   },
+  "lcm": {
+    "glyph": "∧",
+    "args": 2,
+    "outputs": 1,
+    "class": "DyadicPervasive",
+    "description": "Least common multiple"
+  },
   "length": {
     "glyph": "⧻",
     "args": 1,
@@ -965,7 +986,6 @@
     "description": "Modulo values"
   },
   "multiply": {
-    "ascii": "*",
     "glyph": "×",
     "args": 2,
     "outputs": 1,
@@ -1035,14 +1055,6 @@
     "modifier_args": 1,
     "class": "Stack",
     "description": "Call a function but keep its first argument on the top of the stack"
-  },
-  "or": {
-    "glyph": "∨",
-    "args": 2,
-    "outputs": 1,
-    "class": "DyadicPervasive",
-    "description": "Logical OR and greatest common divisor",
-    "experimental": true
   },
   "orient": {
     "glyph": "⤸",

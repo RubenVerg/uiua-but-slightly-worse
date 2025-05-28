@@ -247,7 +247,7 @@ fn TutorialBasic() -> impl IntoView {
         <p>"As noted in the table, negative number literals are typed with the "<code>"`"</code>" character. This is because "<code>"-"</code>" is used for subtraction."</p>
         <Editor example="+ `1 `2"/>
         <p>"The formatter will align consecutive end-of-line comments. Try it out!"</p>
-        <Editor example="%2 8 # Line\n@x # these\n1 # up"/>
+        <Editor example="div2 8 # Line\n@x # these\n1 # up"/>
 
         <Hd id="output-comments">"Output Comments"</Hd>
         <p>"A comment that starts with additional "<code>"#"</code>"s is an "<em>"output comment"</em>". The formatter replaces the text of an output comment with as many values from the stack as there are extra "<code>"#"</code>"s."</p>
@@ -662,7 +662,7 @@ fn TutorialBindings() -> impl IntoView {
         <p>"Here, the parser thinks that "<code>"part"</code>" is "<Prim prim=Partition/>"."</p>
         <Editor example="part = 5" help={&["", "Run to format and reveal why this does not work"]}/>
         <p>"Binding names with 2 or more characters should be "<A href="https://en.wikipedia.org/wiki/Camel_case">"PascalCase (also known as upper CamelCase)"</A>" to avoid this issue."</p>
-        <Editor example="Part = 5\n*2 Part"/>
+        <Editor example="Part = 5\nmul2 Part"/>
         <p>"Bindings run the code to the right of the "<code>"←"</code>", then pop the top value off the stack and bind it to the name on the left."</p>
         <p>"Note, though, that an empty right side is perfectly valid! This means you can bind values that were created on previous lines."</p>
         <Editor example="×6 7\nAnswer ←\n[Answer]"/>
