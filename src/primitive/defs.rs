@@ -1428,13 +1428,6 @@ primitive!(
     ///   : ⌝⊥[12 20 ∞] [11 1 3]
     ///   : ⌝⬚10⊥[12 20] [3 13 6 6 1 4]
     (2, Base, DyadicArray, ("base", '⊥')),
-    /// Invoke a lambda
-    ///
-    /// After creating a [lambda], you can call it with [call].
-    /// Because the length of the stack must be known at compile time, arguments are taken in a boxed array and results are returned in a box array.
-    /// The first argument is the arguments to the lambda and the second argument is the lambda itself.
-    /// ex: ⋌{3 2}⋋+
-    (2, Invoke, Misc, ("call", '⋌'), Mutating),
     /// Apply a reducing function to an array
     ///
     /// For reducing with an initial value, see [fold].
@@ -2506,6 +2499,13 @@ primitive!(
     ///
     /// A lambda is a special value that can be put in an array and then invoked with [call]
     (0[1], Lambda, OtherModifier, ("lambda", '⋋')),
+    /// Invoke a lambda
+    ///
+    /// After creating a [lambda], you can call it with [call].
+    /// Because the length of the stack must be known at compile time, arguments are taken in a boxed array and results are returned in a box array.
+    /// The first argument is the arguments to the lambda and the second argument is the lambda itself.
+    /// ex: ⋌{3 2}⋋+
+    (2, Invoke, Misc, ("call", '⋌'), Mutating),
     /// Run a function at compile time
     ///
     /// ex: F ← (⌊×10[⚂⚂⚂])
