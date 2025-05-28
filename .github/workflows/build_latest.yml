@@ -89,6 +89,43 @@ jobs:
         git commit --amend --no-edit
         git push --force
         git checkout main
+    - name: Upload site artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: site
+        path: |
+            docs/
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs:
+      - build_site
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Download fonts
+        uses: actions/download-artifact@v4
+        with:
+          name: 'docs'
+          path: '.'
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
   # Create the release without assets
   create_release:
     name: Create release
