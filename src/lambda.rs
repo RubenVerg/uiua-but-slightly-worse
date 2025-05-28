@@ -33,6 +33,9 @@ impl fmt::Display for Lambda {
 impl Lambda {
     /// Wrap a noad into a lambda that returns it
     pub fn noad(value: Value) -> Lambda {
-        Lambda { repr: value.representation().into(), sn: SigNode::new((0, 1), Node::new_push(value)) }
+        Lambda {
+            repr: value.representation().into(),
+            sn: SigNode::new((0, 1), Node::new_push(value)),
+        }
     }
 }

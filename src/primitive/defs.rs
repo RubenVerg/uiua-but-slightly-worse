@@ -192,7 +192,7 @@ primitive!(
         ("negate", AsciiToken::Backtick, '¯')
     ),
     /// Take the reciprocal of a number
-    /// 
+    ///
     /// ex: ⨪ 5
     (1, Recip, MonadicPervasive, ("reciprocal", '⨪')),
     /// Get the absolute value of a number
@@ -1420,7 +1420,7 @@ primitive!(
     ///   : ⌝⬚10⊥[12 20] [3 13 6 6 1 4]
     (2, Base, DyadicArray, ("base", '⊥')),
     /// Invoke a lambda
-    /// 
+    ///
     /// After creating a [lambda], you can call it with [call].
     /// Because the length of the stack must be known at compile time, arguments are taken in a boxed array and results are returned in a box array.
     /// The first argument is the arguments to the lambda and the second argument is the lambda itself.
@@ -2494,7 +2494,7 @@ primitive!(
     /// In general, this should only be used with functions that perform a potentially expensive calculation.
     ([1], Memo, OtherModifier, "memo"),
     /// Wrap a function into a lambda
-    /// 
+    ///
     /// A lambda is a special value that can be put in an array and then invoked with [call]
     (0[1], Lambda, OtherModifier, ("lambda", '⋋')),
     /// Run a function at compile time

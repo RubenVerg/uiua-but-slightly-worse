@@ -1109,7 +1109,7 @@ impl Formatter<'_> {
                     }
                     self.push(&sup.script.span, &sup.script.value.to_string());
                 }
-            }
+            },
             Word::Spaces => self.push(&word.span, " "),
             Word::Comment(comment) => {
                 let beginning_of_line = self

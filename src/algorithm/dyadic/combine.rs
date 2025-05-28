@@ -10,8 +10,8 @@ use crate::{
     },
     cowslice::cowslice,
     fill::FillValue,
-    val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Lambda, Primitive, Shape, Uiua, UiuaResult,
-    Value,
+    val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Lambda, Primitive, Shape, Uiua,
+    UiuaResult, Value,
 };
 
 fn data_index_to_shape_index(mut index: usize, shape: &[usize], out: &mut [usize]) -> bool {

@@ -1185,9 +1185,7 @@ impl Value {
             }
             Value::Char(a) => Value::Char(a.anti_select(indices_shape, &indices_data, env)?),
             Value::Box(a) => Value::Box(a.anti_select(indices_shape, &indices_data, env)?),
-            Value::Lambda(a) => {
-                Value::Lambda(a.anti_select(indices_shape, &indices_data, env)?)
-            }
+            Value::Lambda(a) => Value::Lambda(a.anti_select(indices_shape, &indices_data, env)?),
         })
     }
     pub(crate) fn anti_pick(self, mut from: Self, env: &Uiua) -> UiuaResult<Self> {

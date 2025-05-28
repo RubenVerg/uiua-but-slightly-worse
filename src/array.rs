@@ -18,7 +18,11 @@ use crate::{
     algorithm::{
         map::{MapKeys, EMPTY_NAN, TOMBSTONE_NAN},
         ArrayCmpSlice,
-    }, cowslice::{cowslice, CowSlice}, fill::{Fill, FillValue}, grid_fmt::{ElemAlign, GridFmt}, Boxed, Complex, ExactDoubleIterator, HandleKind, Lambda, Node, Shape, SigNode, Value
+    },
+    cowslice::{cowslice, CowSlice},
+    fill::{Fill, FillValue},
+    grid_fmt::{ElemAlign, GridFmt},
+    Boxed, Complex, ExactDoubleIterator, HandleKind, Lambda, Node, Shape, SigNode, Value,
 };
 
 /// Uiua's array type
@@ -1531,7 +1535,10 @@ impl ArrayValue for Lambda {
         self.sn.hash(hasher);
     }
     fn proxy() -> Self {
-        Lambda{ sn: SigNode::new((0, 0), Node::empty()), repr: "()".into() }
+        Lambda {
+            sn: SigNode::new((0, 0), Node::empty()),
+            repr: "()".into(),
+        }
     }
     fn empty_list_inner() -> &'static str {
         "⋋"

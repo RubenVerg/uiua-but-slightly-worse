@@ -469,7 +469,7 @@ impl Compiler {
                 let op = modified.operands.first().unwrap().clone();
                 let repr = format_word(&op, &self.asm.inputs).into();
                 let sn = self.word_sig(op)?;
-                Node::new_push(crate::Lambda{ sn, repr })
+                Node::new_push(crate::Lambda { sn, repr })
             }
             Gap => {
                 let (SigNode { mut node, .. }, _) = self.monadic_modifier_op(modified)?;

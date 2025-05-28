@@ -10,7 +10,10 @@ use std::{
 };
 
 use crate::{
-    ast::{Func, InlineMacro, Item, Modifier, ModuleKind, Ref, RefComponent, Subscript, Superscript, Word},
+    ast::{
+        Func, InlineMacro, Item, Modifier, ModuleKind, Ref, RefComponent, Subscript, Superscript,
+        Word,
+    },
     ident_modifier_args, is_custom_glyph,
     lex::{CodeSpan, Sp},
     parse::parse,
@@ -764,7 +767,12 @@ impl Spanner {
                 }
                 Word::Superscripted(sup) => {
                     spans.extend(self.words_spans(slice::from_ref(&sup.word)));
-                    spans.push(sup.script.span.clone().sp(SpanKind::Superscript(sup.script.value)));
+                    spans.push(
+                        sup.script
+                            .span
+                            .clone()
+                            .sp(SpanKind::Superscript(sup.script.value)),
+                    );
                 }
                 Word::InlineMacro(InlineMacro {
                     ident,

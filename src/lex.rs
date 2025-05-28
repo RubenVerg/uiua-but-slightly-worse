@@ -1578,7 +1578,7 @@ impl<'a> Lexer<'a> {
                 Some(NumericSuperscript::N(n))
             } else {
                 None
-            }
+            },
         }
     }
     fn character(

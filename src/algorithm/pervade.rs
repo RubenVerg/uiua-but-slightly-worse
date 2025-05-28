@@ -1401,7 +1401,10 @@ pub mod mul {
         let mut node = b.sn.node;
         node.push(a.sn.node);
         let sig = a.sn.sig.compose(b.sn.sig);
-        Lambda { sn: SigNode::new(sig, node), repr }
+        Lambda {
+            sn: SigNode::new(sig, node),
+            repr,
+        }
     }
     pub fn lambda_x(a: Lambda, b: impl Into<Value>) -> Lambda {
         lambda_lambda(a, Lambda::noad(b.into()))

@@ -10,7 +10,8 @@ use ecow::EcoVec;
 use serde::*;
 
 use crate::{
-    algorithm::ArrayCmpSlice, val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Lambda, Node, SigNode, Uiua, UiuaResult, Value
+    algorithm::ArrayCmpSlice, val_as_arr, Array, ArrayValue, Boxed, Complex, FormatShape, Lambda,
+    Node, SigNode, Uiua, UiuaResult, Value,
 };
 
 use super::{ErrorContext, FillContext};
@@ -950,10 +951,16 @@ impl MapItem for Boxed {
 
 impl MapItem for Lambda {
     fn empty_cell() -> Self {
-        Lambda{ sn: SigNode::default(), repr: "()".into() }
+        Lambda {
+            sn: SigNode::default(),
+            repr: "()".into(),
+        }
     }
     fn tombstone_cell() -> Self {
-        Lambda{ sn: SigNode::new((0, 1), Node::new_push(TOMBSTONE_NAN)), repr: "(tombstone)".into() }
+        Lambda {
+            sn: SigNode::new((0, 1), Node::new_push(TOMBSTONE_NAN)),
+            repr: "(tombstone)".into(),
+        }
     }
     fn is_any_empty_cell(&self) -> bool {
         *self == Lambda::empty_cell()

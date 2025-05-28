@@ -9,7 +9,8 @@ use crate::{
     function::Signature,
     lex::{CodeSpan, Sp},
     parse::ident_modifier_args,
-    BindingCounts, Complex, Ident, Primitive, SemanticComment, SUBSCRIPT_DIGITS, SUPERSCRIPT_DIGITS,
+    BindingCounts, Complex, Ident, Primitive, SemanticComment, SUBSCRIPT_DIGITS,
+    SUPERSCRIPT_DIGITS,
 };
 
 /// A top-level item
@@ -982,7 +983,11 @@ impl fmt::Display for NumericSuperscript {
         match self {
             NumericSuperscript::N(n) => {
                 for c in n.abs().to_string().chars() {
-                    write!(f, "{}", SUPERSCRIPT_DIGITS[(c as u32 as u8 - b'0') as usize])?;
+                    write!(
+                        f,
+                        "{}",
+                        SUPERSCRIPT_DIGITS[(c as u32 as u8 - b'0') as usize]
+                    )?;
                 }
                 Ok(())
             }

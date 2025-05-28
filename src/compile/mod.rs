@@ -1521,10 +1521,7 @@ impl Compiler {
                 if let Some(NumericSuperscript::N(n)) = sup.script.value.num {
                     Node::from_iter([Node::new_push(n), self.word(sup.word)?])
                 } else {
-                    self.add_error(
-                        sup.script.span.clone(),
-                        format!("Wrong superscript?"),
-                    );
+                    self.add_error(sup.script.span.clone(), format!("Wrong superscript?"));
                     self.word(sup.word)?
                 }
             }
@@ -2165,17 +2162,11 @@ impl Compiler {
                 let Some(side) = self.subscript_side_only(&scr, prim.format()) else {
                     return Ok(self.primitive(prim, span));
                 };
-                self.experimental_error_it(&scr.span, || {
-                        format!("Sided {}", prim.format())
-                    });
+                self.experimental_error_it(&scr.span, || format!("Sided {}", prim.format()));
                 let sub_span = self.add_span(scr.span);
                 let mut node = Node::Prim(Primitive::Fix, sub_span);
                 if side == SubSide::Right {
-                    node = Node::Mod(
-                        Primitive::Dip,
-                        eco_vec![node.sig_node().unwrap()],
-                        sub_span,
-                    );
+                    node = Node::Mod(Primitive::Dip, eco_vec![node.sig_node().unwrap()], sub_span);
                 }
                 node.push(self.primitive(prim, span));
                 node
@@ -2364,12 +2355,18 @@ impl Compiler {
                     }
                     Identity => {
                         let n = self.positive_subscript(n, Identity, &span);
-                        if n == 0 { Node::empty() } else {
+                        if n == 0 {
+                            Node::empty()
+                        } else {
                             let span = self.add_span(span);
                             let mut res = Node::Prim(Identity, span);
                             let mut sig = 0;
-                            for _ in 0..n { 
-                                res = Node::Mod(Dip, EcoVec::from_iter([SigNode::new((sig, sig), res)]), span);
+                            for _ in 0..n {
+                                res = Node::Mod(
+                                    Dip,
+                                    EcoVec::from_iter([SigNode::new((sig, sig), res)]),
+                                    span,
+                                );
                                 sig += 1;
                             }
                             res

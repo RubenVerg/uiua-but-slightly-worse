@@ -8,7 +8,12 @@ use std::{
 };
 
 use crate::{
-    algorithm::map::{EMPTY_CHAR, EMPTY_NAN, TOMBSTONE_CHAR, TOMBSTONE_NAN}, array::{Array, ArrayValue}, boxed::Boxed, terminal_size, val_as_arr, value::Value, Complex, Lambda, Primitive, WILDCARD_CHAR, WILDCARD_NAN
+    algorithm::map::{EMPTY_CHAR, EMPTY_NAN, TOMBSTONE_CHAR, TOMBSTONE_NAN},
+    array::{Array, ArrayValue},
+    boxed::Boxed,
+    terminal_size, val_as_arr,
+    value::Value,
+    Complex, Lambda, Primitive, WILDCARD_CHAR, WILDCARD_NAN,
 };
 
 type Grid<T = char> = Vec<Vec<T>>;
@@ -196,7 +201,7 @@ impl GridFmt for Value {
                     ..params
                 })
             }
-            Value::Lambda(l) => l.fmt_grid(params)
+            Value::Lambda(l) => l.fmt_grid(params),
         }
     }
 }

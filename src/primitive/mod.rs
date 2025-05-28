@@ -27,7 +27,16 @@ use rand::prelude::*;
 use serde::*;
 
 use crate::{
-    algorithm::{self, ga::GaOp, loops, reduce, table, zip, *}, array::Array, ast::{NumericSubscript, SubSide, Subscript}, boxed::Boxed, grid_fmt::GridFmt, lex::{AsciiToken, SUBSCRIPT_DIGITS}, media, sys::*, value::*, FunctionId, Ops, Purity, Shape, Signature, Uiua, UiuaErrorKind, UiuaResult
+    algorithm::{self, ga::GaOp, loops, reduce, table, zip, *},
+    array::Array,
+    ast::{NumericSubscript, SubSide, Subscript},
+    boxed::Boxed,
+    grid_fmt::GridFmt,
+    lex::{AsciiToken, SUBSCRIPT_DIGITS},
+    media,
+    sys::*,
+    value::*,
+    FunctionId, Ops, Purity, Shape, Signature, Uiua, UiuaErrorKind, UiuaResult,
 };
 
 /// Categories of primitives
@@ -806,7 +815,11 @@ impl Primitive {
                             let sn = arr.data[0].sn.clone();
                             let sig = sn.sig;
                             if sig.args() != args.row_count() {
-                                return Err(env.error(format!("Invoke got a lambda with arity {}, but {} arguments.", sn.sig.args(), args.row_count())))
+                                return Err(env.error(format!(
+                                    "Invoke got a lambda with arity {}, but {} arguments.",
+                                    sn.sig.args(),
+                                    args.row_count()
+                                )));
                             }
                             for arg in args.into_rows().rev() {
                                 env.push(arg.unboxed())
@@ -818,9 +831,14 @@ impl Primitive {
                             }
                             buf.into()
                         }
-                        rk => return Err(env.error(format!("Invoke expected scalar lambda, got array of type {}.", rk)))
+                        rk => {
+                            return Err(env.error(format!(
+                                "Invoke expected scalar lambda, got array of type {}.",
+                                rk
+                            )))
+                        }
                     },
-                    val => Value::from(Boxed(val)).join(args, false, env)?
+                    val => Value::from(Boxed(val)).join(args, false, env)?,
                 };
                 env.push(res);
             }

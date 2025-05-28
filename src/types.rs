@@ -1,8 +1,8 @@
 use std::{array, cmp::Ordering, mem::take};
 
 use crate::{
-    cowslice::CowSlice, Array, Assembly, Boxed, Complex, ImplPrimitive, Lambda, Node, PersistentMeta,
-    Primitive, Shape, SigNode, Uiua, Value,
+    cowslice::CowSlice, Array, Assembly, Boxed, Complex, ImplPrimitive, Lambda, Node,
+    PersistentMeta, Primitive, Shape, SigNode, Uiua, Value,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
