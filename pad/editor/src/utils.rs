@@ -678,6 +678,7 @@ pub fn gen_code_view(id: &str, code: &str) -> View {
                         SpanKind::Strand => "strand-span",
                         SpanKind::Subscript(None, _) => "number-literal",
                         SpanKind::Subscript(Some(prim), n) => prim_sig_class(*prim, *n),
+                        SpanKind::Superscript(_) => "number-literal",
                         SpanKind::MacroDelim(margs) => modifier_class(*margs),
                         _ => "",
                     };
