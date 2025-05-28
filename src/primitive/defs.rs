@@ -379,7 +379,7 @@ primitive!(
     /// [un][multiply] splits a number into sign and magnitude.
     /// ex: °× [1.5 0 ¯4]
     /// ex: °× [i ℂ3 4 2]
-    (2, Mul, DyadicPervasive, ("multiply", AsciiToken::Star, '×')),
+    (2, Mul, DyadicPervasive, ("multiply", '×')),
     /// Divide values
     ///
     /// Formats from `%`.
@@ -393,12 +393,7 @@ primitive!(
     ///
     /// [un][divide] splits a number into whole number denominator and numerator.
     /// ex: °÷ [0.75 5/2 0.123 100 ¯0.5]
-    (
-        2,
-        Div,
-        DyadicPervasive,
-        ("divide", AsciiToken::Percent, '÷')
-    ),
+    (2, Div, DyadicPervasive, ("divide", '÷')),
     /// Modulo values
     ///
     /// The second value is divided by the first, and the remainder is returned.
