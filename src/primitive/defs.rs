@@ -419,7 +419,7 @@ primitive!(
     /// Boolean values give logical OR.
     /// ex: ∨ [0 1 0 1] [0 0 1 1]
     /// ex: ⊞∨.[0 1]
-    /// 
+    ///
     /// The [reduce] identity of [gcd] is `0`. This makes it better than [maximum] as a logical OR.
     /// ex: /∨ []
     /// ex: [⊃/∨/↥] [0 0]

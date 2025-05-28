@@ -86,7 +86,7 @@ pub fn Site() -> impl IntoView {
     };
     visits = visits.overflowing_add(1).0;
 
-    /* 
+    /*
     // Change the favicon to favicon-crayon.ico every 10 visits
     if visits % 10 == 0 {
         let link = document().create_element("link").unwrap();
