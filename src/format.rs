@@ -1093,12 +1093,22 @@ impl Formatter<'_> {
                     self.subscript(&sub.script);
                 }
             },
-            Word::Superscripted(sup) => {
-                self.format_word(&sup.word, depth);
-                if self.output.ends_with(SUPERSCRIPT_DIGITS) {
-                    self.output.push(' ');
+            Word::Superscripted(sup) => match &sup.word.value {
+                Word::Modified(m) => {
+                    self.format_modifier(&m.modifier, depth);
+                    if self.output.ends_with(SUPERSCRIPT_DIGITS) {
+                        self.output.push(' ');
+                    }
+                    self.push(&sup.script.span, &sup.script.value.to_string());
+                    self.format_words(&m.operands, true, depth);
                 }
-                self.push(&sup.script.span, &sup.script.value.to_string());
+                _ => {
+                    self.format_word(&sup.word, depth);
+                    if self.output.ends_with(SUPERSCRIPT_DIGITS) {
+                        self.output.push(' ');
+                    }
+                    self.push(&sup.script.span, &sup.script.value.to_string());
+                }
             }
             Word::Spaces => self.push(&word.span, " "),
             Word::Comment(comment) => {

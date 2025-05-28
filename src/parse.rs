@@ -1077,6 +1077,11 @@ impl Parser<'_> {
             subscript = Some(n);
             self.spaces();
         }
+        let mut superscript = None;
+        if let Some(n) = self.next_token_map(Token::as_superscript) {
+            superscript = Some(n);
+            self.spaces();
+        }
         let mut args = Vec::new();
         for i in 0..modifier.args() {
             loop {
@@ -1169,6 +1174,14 @@ impl Parser<'_> {
         if let Some(n) = subscript {
             let span = word.span.clone().merge(n.span.clone());
             word = span.sp(Word::Subscripted(Box::new(crate::ast::Subscripted {
+                script: n,
+                word,
+            })));
+        }
+
+        if let Some(n) = superscript {
+            let span = word.span.clone().merge(n.span.clone());
+            word = span.sp(Word::Superscripted(Box::new(crate::ast::Superscripted {
                 script: n,
                 word,
             })));

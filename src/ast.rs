@@ -993,8 +993,20 @@ impl fmt::Display for NumericSuperscript {
 
 impl fmt::Debug for Superscripted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.word.value.fmt(f)?;
-        write!(f, "{}", self.script.value)
+        match &self.word.value {
+            Word::Modified(m) => {
+                m.modifier.value.fmt(f)?;
+                write!(f, "{}", self.script.value)?;
+                for word in &m.operands {
+                    write!(f, "({:?})", word.value)?;
+                }
+                Ok(())
+            }
+            _ => {
+                self.word.value.fmt(f)?;
+                write!(f, "{}", self.script.value)
+            }
+        }
     }
 }
 
