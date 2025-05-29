@@ -265,7 +265,7 @@ pub fn split_name(name: &str) -> Option<Vec<(PrimComponent, &str)>> {
             }
             // 1-letter planet notation
             if sub_name
-                .strip_prefix('f')
+                .strip_prefix(['f', 'w', 'o'])
                 .unwrap_or(sub_name)
                 .strip_suffix(['i', 'p'])
                 .unwrap_or(sub_name)
@@ -280,6 +280,8 @@ pub fn split_name(name: &str) -> Option<Vec<(PrimComponent, &str)>> {
                         'd' => Primitive::Dip,
                         'i' => Primitive::Identity,
                         'p' => Primitive::Pop,
+                        'w' => Primitive::With,
+                        'o' => Primitive::Off,
                         _ => unreachable!(),
                     };
                     prims.push((prim.into(), &sub_name[i..i + 1]))
