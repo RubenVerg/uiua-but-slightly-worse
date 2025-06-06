@@ -220,7 +220,13 @@ primitive!(
     ///
     (1, Sqrt, MonadicPervasive, ("sqrt", '√')),
     /// Get the natural logarithm of a number
-    (1, Ln, MonadicPervasive, "ln"),
+    ///
+    /// ex: ◜e
+    /// ex: ◜2
+    ///
+    /// Subscripted [ln] gives the base n logarithm.
+    /// ex: ◜₂4
+    (1, Ln, MonadicPervasive, ("ln", '◜')),
     /// Get the sine of a number
     ///
     /// ex: ∿ 1
