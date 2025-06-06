@@ -38,10 +38,10 @@ use crate::{
     },
     Array, ArrayValue, Assembly, BindingKind, BindingMeta, Boxed, CodeSpan, CustomInverse,
     Diagnostic, DiagnosticKind, DocComment, DocCommentSig, Function, FunctionId, GitTarget, Ident,
-    ImplPrimitive, InputSrc, IntoInputSrc, IntoSysBackend, Node, NumericSubscript, NumericSuperscript, PrimClass,
-    Primitive, Purity, RunMode, SemanticComment, SigNode, Signature, Sp, Span, SubSide, Subscript,
-    SysBackend, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value, CONSTANTS, EXAMPLE_UA,
-    SUBSCRIPT_DIGITS, VERSION,
+    ImplPrimitive, InputSrc, IntoInputSrc, IntoSysBackend, Node, NumericSubscript,
+    NumericSuperscript, PrimClass, Primitive, Purity, RunMode, SemanticComment, SigNode, Signature,
+    Sp, Span, SubSide, Subscript, SysBackend, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value,
+    CONSTANTS, EXAMPLE_UA, SUBSCRIPT_DIGITS, VERSION,
 };
 pub(crate) use data::*;
 pub use pre_eval::PreEvalMode;
@@ -2222,17 +2222,11 @@ impl Compiler {
                 let Some(side) = self.subscript_side_only(&scr, prim.format()) else {
                     return Ok(self.primitive(prim, span));
                 };
-                self.experimental_error_it(&scr.span, || {
-                    format!("Sided {}", prim.format())
-                });
+                self.experimental_error_it(&scr.span, || format!("Sided {}", prim.format()));
                 let sub_span = self.add_span(scr.span);
                 let mut node = Node::Prim(Primitive::Fix, sub_span);
                 if side == SubSide::Right {
-                    node = Node::Mod(
-                        Primitive::Dip,
-                        eco_vec![node.sig_node().unwrap()],
-                        sub_span,
-                    );
+                    node = Node::Mod(Primitive::Dip, eco_vec![node.sig_node().unwrap()], sub_span);
                 }
                 node.push(self.primitive(prim, span));
                 node

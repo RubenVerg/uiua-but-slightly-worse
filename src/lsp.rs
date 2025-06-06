@@ -12,7 +12,8 @@ use std::{
 use crate::{
     ast::*, is_custom_glyph, parse, parse::ident_modifier_args, Assembly, BindingInfo, BindingKind,
     BindingMeta, CodeSpan, Compiler, Ident, InputSrc, Inputs, LocalName, PreEvalMode, Primitive,
-    Purity, SafeSys, Shape, Signature, Sp, Subscript, Superscript, SysBackend, UiuaError, Value, CONSTANTS,
+    Purity, SafeSys, Shape, Signature, Sp, Subscript, Superscript, SysBackend, UiuaError, Value,
+    CONSTANTS,
 };
 
 /// Kinds of span in Uiua code, meant to be used in the language server or other IDE tools

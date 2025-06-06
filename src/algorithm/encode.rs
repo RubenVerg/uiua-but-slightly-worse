@@ -7,7 +7,7 @@ use enum_iterator::{all, Sequence};
 
 use crate::{
     algorithm::validate_size, cowslice::CowSlice, fill::FillValue, Array, ArrayFlags, ArrayMeta,
-    Boxed, Complex, Shape, SubSide, Lambda, Uiua, UiuaResult, Value, ArrayValue,
+    ArrayValue, Boxed, Complex, Lambda, Shape, SubSide, Uiua, UiuaResult, Value,
 };
 
 use super::FillContext;

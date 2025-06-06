@@ -20,7 +20,8 @@ use crate::{
     cowslice::{cowslice, CowSlice},
     fill::{Fill, FillValue},
     grid_fmt::GridFmt,
-    Boxed, Complex, ExactDoubleIterator, HandleKind, Lambda, Node, Shape, SigNode, Value, WILDCARD_CHAR, WILDCARD_NAN,
+    Boxed, Complex, ExactDoubleIterator, HandleKind, Lambda, Node, Shape, SigNode, Value,
+    WILDCARD_CHAR, WILDCARD_NAN,
 };
 
 /// Uiua's array type

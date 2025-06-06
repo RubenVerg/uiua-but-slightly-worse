@@ -3,7 +3,7 @@
 use enum_iterator::Sequence;
 use serde::*;
 
-use crate::{AsciiToken, PrimNames, PrimClass, Purity, SysOpClass};
+use crate::{AsciiToken, PrimClass, PrimNames, Purity, SysOpClass};
 
 macro_rules! primitive {
     ($(

@@ -157,8 +157,8 @@ mod fill;
 pub mod format;
 mod function;
 mod grid_fmt;
-mod lambda;
 mod impl_prim;
+mod lambda;
 pub mod lsp;
 #[doc(hidden)]
 pub mod profile;
@@ -187,8 +187,8 @@ pub use self::{
     error::*,
     ffi::*,
     function::*,
-    lambda::*,
     impl_prim::*,
+    lambda::*,
     lsp::{SpanKind, Spans},
     run::*,
     run_prim::*,
