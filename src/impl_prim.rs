@@ -113,6 +113,7 @@ impl_primitive!(
     (1, Asin),
     (1, Acos),
     (1, Exp),
+    (2, Log),
     (0, UnPop, Impure),
     (1, UnBits),
     (1, UnWhere),
@@ -229,7 +230,6 @@ impl_primitive!(
     (2, AbsComplex),
     (2, MatrixDiv),
     (2, RangeStart),
-    // Implementation details
     (2(3), Over),
     (1, NBits(usize)),
     (1, DeshapeSub(i32)),
@@ -307,6 +307,7 @@ impl fmt::Display for ImplPrimitive {
             Asin => write!(f, "{Un}{Sin}"),
             Acos => write!(f, "{Un}{Cos}"),
             Exp => write!(f, "{Un}{Ln}"),
+            Log => write!(f, "log"),
             UnPop => write!(f, "{Un}{Pop}"),
             UnBits => write!(f, "{Un}{Bits}"),
             UnWhere => write!(f, "{Un}{Where}"),

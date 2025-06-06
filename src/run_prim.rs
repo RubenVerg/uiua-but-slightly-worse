@@ -102,7 +102,6 @@ pub fn run_prim_func(prim: &Primitive, env: &mut Uiua) -> UiuaResult {
         Primitive::GCD => env.dyadic_oo_env(Value::or)?,
         Primitive::LCM => env.dyadic_oo_env(Value::and)?,
         Primitive::Pow => env.dyadic_oo_env(Value::pow)?,
-        Primitive::Log => env.dyadic_oo_env(Value::log)?,
         Primitive::Min => env.dyadic_oo_env(Value::min)?,
         Primitive::Max => env.dyadic_oo_env(Value::max)?,
         Primitive::Atan => env.dyadic_oo_env(Value::atan2)?,
@@ -587,6 +586,7 @@ impl ImplPrimitive {
             ImplPrimitive::Asin => env.monadic_env(Value::asin)?,
             ImplPrimitive::Acos => env.monadic_env(Value::acos)?,
             ImplPrimitive::Exp => env.monadic_env(Value::exp)?,
+            ImplPrimitive::Log => env.dyadic_oo_env(Value::log)?,
             ImplPrimitive::UnPop => {
                 let fv = (env.last_fill()).ok_or_else(|| env.error("No fill set").fill())?;
                 env.push(fv.value.clone());

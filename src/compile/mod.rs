@@ -2284,7 +2284,7 @@ impl Compiler {
                         if n == 0 || n == 1 {
                             self.add_error(span.clone(), format!("Cannot take log base {n}"));
                         }
-                        Node::from_iter([Node::new_push(n as f64), self.primitive(Log, span)])
+                        Node::from_iter([Node::new_push(n as f64), Node::ImplPrim(ImplPrimitive::Log, self.add_span(span.clone()))])
                     }
                     Floor | Ceil => {
                         self.subscript_experimental(prim, &span);

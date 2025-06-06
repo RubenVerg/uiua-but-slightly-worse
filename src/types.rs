@@ -189,7 +189,7 @@ impl TypeRt<'_> {
                     let x = self.pop()?;
                     self.stack.push(x);
                 }
-                Add | Sub | Mul | Div | Pow | Modulus | Log => {
+                Add | Sub | Mul | Div | Pow | Modulus => {
                     let a = self.pop()?;
                     let b = self.pop()?;
                     let shape = if a.shape.len() > b.shape.len() {
@@ -313,6 +313,17 @@ impl TypeRt<'_> {
                 _ => return Err(TypeError::NotSupported),
             },
             Node::ImplPrim(prim, _) => match prim {
+                ImplPrimitive::Log => {
+                    let a = self.pop()?;
+                    let b = self.pop()?;
+                    let shape = if a.shape.len() > b.shape.len() {
+                        a.shape
+                    } else {
+                        b.shape
+                    };
+                    let scalar = a.scalar.max(b.scalar);
+                    self.stack.push(Ty::new(scalar, shape));
+                }
                 ImplPrimitive::UnBox => {
                     let x = self.pop()?;
                     self.stack.push(x.unboxed());

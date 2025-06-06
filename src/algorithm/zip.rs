@@ -353,7 +353,6 @@ fn prim_dy_fast_fn(
         Div => spanned_dy_fn(span, Value::div),
         Pow => spanned_dy_fn(span, Value::pow),
         Modulus => spanned_dy_fn(span, Value::modulus),
-        Log => spanned_dy_fn(span, Value::log),
         Eq => spanned_dy_fn(span, Value::is_eq),
         Ne => spanned_dy_fn(span, Value::is_ne),
         Lt => spanned_dy_fn(span, Value::other_is_lt),

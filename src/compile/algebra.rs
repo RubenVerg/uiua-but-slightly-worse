@@ -251,7 +251,7 @@ fn expr_to_node(expr: Expr, any_complex: bool, asm: &Assembly) -> Node {
                     Term::Log(base, expr) => {
                         recur(node, expr, any_complex, span);
                         node.push(Node::new_push(base));
-                        node.push(Prim(Log, span));
+                        node.push(ImplPrim(Log, span));
                     }
                     Term::Sin(expr) => {
                         recur(node, expr, any_complex, span);
@@ -451,13 +451,6 @@ impl<'a> AlgebraEnv<'a> {
                     self.stack.push(res);
                     self.handled += 1;
                 }
-                Log => {
-                    let a = self.pop()?;
-                    let b = self.pop()?;
-                    let res = b.log(a).ok_or(AlgebraError::TooComplex)?;
-                    self.stack.push(res);
-                    self.handled += 1;
-                }
                 Ln => {
                     let a = self.pop()?;
                     let res = a.log(E.into()).ok_or(AlgebraError::TooComplex)?;
@@ -493,6 +486,13 @@ impl<'a> AlgebraEnv<'a> {
                 Exp => {
                     let a = self.pop()?;
                     let res = Expr::from(E).pow(a).ok_or(AlgebraError::TooComplex)?;
+                    self.stack.push(res);
+                    self.handled += 1;
+                }
+                Log => {
+                    let a = self.pop()?;
+                    let b = self.pop()?;
+                    let res = b.log(a).ok_or(AlgebraError::TooComplex)?;
                     self.stack.push(res);
                     self.handled += 1;
                 }

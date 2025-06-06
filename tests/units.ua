@@ -315,8 +315,6 @@ Test!÷
 Test!˜÷
 Test!ⁿ
 Test!˜ⁿ
-Test!ₙ
-Test!˜ₙ
 
 # Ana inverses
 ⍤⤙≍ [1 0] °/ℂ i
