@@ -13,9 +13,9 @@ use ecow::EcoString;
 
 use crate::{
     ast::*,
-    function::Signature,
     lex::{AsciiToken::*, Token::*, *},
     BindingCounts, Complex, Diagnostic, DiagnosticKind, Ident, Inputs, NumComponent, Primitive,
+    Signature,
 };
 
 /// An error that occurred while parsing
@@ -435,7 +435,6 @@ impl Parser<'_> {
 }
 
 struct BindingInit {
-    tilde_span: Option<CodeSpan>,
     name: Sp<Ident>,
     arrow_span: CodeSpan,
     public: bool,
@@ -445,14 +444,7 @@ struct BindingInit {
 impl Parser<'_> {
     fn binding_init(&mut self) -> Option<BindingInit> {
         let start = self.index;
-        let tilde_span = self.exact(Tilde.into());
-        self.spaces();
-        let name = if let Some(name) = self.ident() {
-            name
-        } else {
-            self.index = start;
-            return None;
-        };
+        let name = self.ident()?;
         // Left arrow
         let arrow_span = self.spaces().map(|w| w.span);
         let (glyph_span, public) =
@@ -483,7 +475,6 @@ impl Parser<'_> {
             arrow_span = arrow_span.merge(span);
         }
         Some(BindingInit {
-            tilde_span,
             name,
             arrow_span,
             public,
@@ -512,7 +503,6 @@ impl Parser<'_> {
     }
     fn binding(&mut self) -> Option<Binding> {
         let BindingInit {
-            tilde_span,
             name,
             arrow_span,
             public,
@@ -611,7 +601,6 @@ impl Parser<'_> {
 
         self.validate_binding_name(&name);
         Some(Binding {
-            tilde_span,
             name,
             arrow_span,
             public,
@@ -793,7 +782,17 @@ impl Parser<'_> {
         let mut lines: Vec<Option<ImportLine>> = Vec::new();
         let mut line: Option<ImportLine> = None;
         let mut last_tilde_index = self.index;
-        while let Some(token) = self.tokens.get(self.index).cloned() {
+        loop {
+            if let Some((line, ident)) = line
+                .as_mut()
+                .and_then(|line| self.ident().map(|ident| (line, ident)))
+            {
+                line.items.push(ident);
+                continue;
+            }
+            let Some(token) = self.tokens.get(self.index).cloned() else {
+                break;
+            };
             let span = token.span;
             let token = token.value;
             match token {
@@ -888,11 +887,23 @@ impl Parser<'_> {
             name = next;
         }
         let span = start_span.merge(name.span.clone());
-        Some(span.sp(Word::Ref(Ref {
-            name,
-            path,
-            in_macro_arg: false,
-        })))
+        let colon_span = path
+            .is_empty()
+            .then(|| self.exact(AsciiToken::Colon.into()))
+            .flatten();
+        Some(if let Some(colon_span) = colon_span {
+            span.merge(colon_span.clone())
+                .sp(Word::ArgSetter(ArgSetter {
+                    ident: name,
+                    colon_span,
+                }))
+        } else {
+            span.sp(Word::Ref(Ref {
+                name,
+                path,
+                in_macro_arg: false,
+            }))
+        })
     }
     fn signature(&mut self, error_on_invalid: bool) -> Option<Sp<Signature>> {
         let reset = self.index;
@@ -945,6 +956,7 @@ impl Parser<'_> {
             (a, 1)
         })
     }
+    #[allow(clippy::single_match)]
     fn words(&mut self) -> Option<Vec<Sp<Word>>> {
         let mut words: Vec<Sp<Word>> = Vec::new();
         while let Some(word) = self.word() {
@@ -1752,7 +1764,10 @@ impl Parser<'_> {
     }
 }
 
-pub(crate) fn split_items(items: Vec<Item>) -> Vec<Item> {
+/// Split a list of items
+///
+/// This processes `;;` tokens, removing them and normalizating the items
+pub fn split_items(items: Vec<Item>) -> Vec<Item> {
     items
         .into_iter()
         .flat_map(|item| match item {
@@ -1761,7 +1776,10 @@ pub(crate) fn split_items(items: Vec<Item>) -> Vec<Item> {
         })
         .collect()
 }
-pub(crate) fn split_words(words: Vec<Sp<Word>>) -> Vec<Vec<Sp<Word>>> {
+/// Split a list of words
+///
+/// This processes `;;` tokens, removing them and normalizating the words
+pub fn split_words(words: Vec<Sp<Word>>) -> Vec<Vec<Sp<Word>>> {
     if !words.iter().any(|w| matches!(w.value, Word::BreakLine)) {
         return vec![words];
     }
@@ -1777,7 +1795,10 @@ pub(crate) fn split_words(words: Vec<Sp<Word>>) -> Vec<Vec<Sp<Word>>> {
     lines
 }
 
-pub(crate) fn flip_unsplit_items(items: Vec<Item>) -> Vec<Item> {
+/// Flip and/or unsplit a list of items
+///
+/// This processes `;` tokens, removing them and normalizing the items
+pub fn flip_unsplit_items(items: Vec<Item>) -> Vec<Item> {
     flip_unsplit_items_impl(items, false)
 }
 fn flip_unsplit_items_impl(items: Vec<Item>, in_array: bool) -> Vec<Item> {
@@ -1803,8 +1824,11 @@ fn flip_unsplit_items_impl(items: Vec<Item>, in_array: bool) -> Vec<Item> {
     );
     unsplit
 }
+
 /// Flip and/or unsplit a list of lines
-pub(crate) fn flip_unsplit_lines(lines: Vec<Vec<Sp<Word>>>) -> Vec<Vec<Sp<Word>>> {
+///
+/// This processes `;` tokens, removing them and normalizing the words
+pub fn flip_unsplit_lines(lines: Vec<Vec<Sp<Word>>>) -> Vec<Vec<Sp<Word>>> {
     flip_unsplit_lines_impl(lines, false)
 }
 fn flip_unsplit_lines_impl(lines: Vec<Vec<Sp<Word>>>, in_array: bool) -> Vec<Vec<Sp<Word>>> {
@@ -1967,7 +1991,8 @@ pub fn ident_modifier_args(ident: &str) -> usize {
     count
 }
 
-pub(crate) fn max_placeholder(words: &[Sp<Word>]) -> Option<usize> {
+/// Get the maximum placeholder index in a list of words
+pub fn max_placeholder(words: &[Sp<Word>]) -> Option<usize> {
     let mut max: Option<usize> = None;
     let mut set = |i: Option<usize>| {
         if let Some(i) = i {
@@ -2004,7 +2029,8 @@ pub(crate) fn max_placeholder(words: &[Sp<Word>]) -> Option<usize> {
     max
 }
 
-pub(crate) fn trim_spaces(words: &[Sp<Word>], trim_end: bool) -> &[Sp<Word>] {
+/// Trim space words
+pub fn trim_spaces(words: &[Sp<Word>], trim_end: bool) -> &[Sp<Word>] {
     let mut start = 0;
     for word in words {
         if let Word::Spaces = word.value {

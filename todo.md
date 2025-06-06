@@ -1,6 +1,7 @@
 # Uiua Todo
 
 # 0.17
+- Sided `join`
 - `table` subscripts for rank selection
 - Mixed subscripts
   - `bracket`

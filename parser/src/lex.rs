@@ -15,8 +15,7 @@ use serde_tuple::*;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    ast::{NumericSubscript, NumericSuperscript, SidedSubscript, SubSide, Subscript, Superscript},
-    split_name, Ident, Inputs, PrimComponent, Primitive, WILDCARD_CHAR,
+    split_name, Ident, Inputs, NumericSubscript, NumericSuperscript, PrimComponent, Primitive, SidedSubscript, SubSide, Subscript, Superscript, WILDCARD_CHAR
 };
 
 /// Subscript digit characters
@@ -361,17 +360,20 @@ impl fmt::Display for Span {
 }
 
 impl CodeSpan {
-    pub(crate) const fn sp<T>(self, value: T) -> Sp<T> {
+    /// Span a value
+    pub const fn sp<T>(self, value: T) -> Sp<T> {
         Sp { value, span: self }
     }
-    pub(crate) fn dummy() -> Self {
+    #[doc(hidden)]
+    pub fn dummy() -> Self {
         Self {
             src: InputSrc::Str(0),
             start: Loc::default(),
             end: Loc::default(),
         }
     }
-    pub(crate) fn literal(s: impl Into<EcoString>) -> Self {
+    /// Create a span which contains its own source
+    pub fn literal(s: impl Into<EcoString>) -> Self {
         let s = s.into();
         let start = Loc {
             line: 1,
@@ -405,7 +407,8 @@ impl CodeSpan {
         self.start = self.start.min(end.start);
         self.end = self.end.max(end.end);
     }
-    pub(crate) fn end_to(self, other: &Self) -> Self {
+    /// Get the span between this span and another after it
+    pub fn end_to(self, other: &Self) -> Self {
         CodeSpan {
             start: self.end,
             end: other.start,

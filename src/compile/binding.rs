@@ -5,7 +5,7 @@ use crate::BindingMeta;
 use super::*;
 
 impl Compiler {
-    pub(super) fn binding(&mut self, binding: Binding, prelude: BindingPrelude) -> UiuaResult {
+    pub(super) fn binding(&mut self, mut binding: Binding, prelude: BindingPrelude) -> UiuaResult {
         let public = binding.public;
 
         let last_word = binding.words.iter().last();
@@ -25,43 +25,29 @@ impl Compiler {
             return Ok(());
         }
 
-        // Get data def if this is a method
-        let mut data_def = None;
-        let is_method = if let Some(tilde_span) = binding.tilde_span {
-            self.experimental_error(&tilde_span, || {
-                "Methods are experimental. To use them, add \
-                `# Experimental!` to the top of the file."
-            });
-            if let Some(def) = self.scope.data_def.clone() {
-                let span = self.add_span(tilde_span);
-                data_def = Some((def, span));
-            } else {
-                self.add_error(
-                    tilde_span,
-                    "Method has no data definition defined before it",
-                );
-            }
-            true
-        } else {
-            false
-        };
-
         // Create meta
-        let comment = prelude
-            .comment
-            .map(|text| DocComment::from(text.as_str()))
-            .or_else(|| {
-                last_word.and_then(|w| match &w.value {
-                    Word::Comment(c) => Some(DocComment::from(c.as_str())),
-                    _ => None,
-                })
-            });
         let deprecation = prelude.deprecation.or_else(|| {
             last_word.and_then(|w| match &w.value {
                 Word::SemanticComment(SemanticComment::Deprecated(s)) => Some(s.clone()),
                 _ => None,
             })
         });
+        let mut last_word_comment = false;
+        let comment = prelude
+            .comment
+            .map(|text| DocComment::from(text.as_str()))
+            .or_else(|| {
+                last_word.and_then(|w| match &w.value {
+                    Word::Comment(c) => {
+                        last_word_comment = true;
+                        Some(DocComment::from(c.as_str()))
+                    }
+                    _ => None,
+                })
+            });
+        if last_word_comment {
+            binding.words.pop();
+        }
         let meta = BindingMeta {
             comment,
             deprecation,
@@ -121,9 +107,6 @@ impl Compiler {
         if binding.code_macro {
             if is_external {
                 self.add_error(span.clone(), "Macros cannot be external");
-            }
-            if is_method {
-                self.add_error(span.clone(), "Methods cannot be macros");
             }
             if max_placeholder.is_some() {
                 return Err(self.error(span.clone(), "Code macros may not contain placeholders"));
@@ -238,9 +221,6 @@ impl Compiler {
             if is_external {
                 self.add_error(span.clone(), "Macros cannot be external");
             }
-            if is_method {
-                self.add_error(span.clone(), "Methods cannot be macros");
-            }
 
             self.scope.names.insert(name.clone(), local);
             self.asm.add_binding_at(
@@ -330,39 +310,14 @@ impl Compiler {
             global_index: local.index,
         });
         let no_code_words = binding.words.iter().all(|w| !w.value.is_code());
-        let compile = |comp: &mut Compiler| -> UiuaResult<Node> {
-            // Compile the words
-            let node = comp.line(binding.words, false);
-            // Add an error binding if there was an error
-            let mut node = match node {
-                Ok(node) => node,
-                Err(e) => {
-                    comp.asm.add_binding_at(
-                        local,
-                        BindingKind::Error,
-                        Some(span.clone()),
-                        meta.clone(),
-                    );
-                    return Err(e);
-                }
-            };
-            // Apply the signature comment
-            if let Some(comment_sig) = meta.comment.as_ref().and_then(|c| c.sig.as_ref()) {
-                comp.apply_node_comment(
-                    &mut node,
-                    comment_sig,
-                    &format!("{name}'s"),
-                    &binding.name.span,
-                );
-            }
-            Ok(node)
-        };
-        // We may need to compile the words in the context of a data definition method
-        let mut node = if let Some((def, _)) = &data_def {
-            self.in_method(def, compile)?
-        } else {
-            self.in_scope(ScopeKind::Binding, compile)?.1
-        };
+
+        // Compile the words
+        let (_, mut node) = self.in_scope(ScopeKind::Binding, |comp| {
+            comp.line(binding.words, false).inspect_err(|_| {
+                comp.asm
+                    .add_binding_at(local, BindingKind::Error, Some(span.clone()), meta.clone())
+            })
+        })?;
         let self_referenced = self.current_bindings.pop().unwrap().recurses > 0;
         let is_obverse = node
             .iter()
@@ -399,7 +354,7 @@ impl Compiler {
         // Resolve signature
         match node.sig() {
             Ok(mut sig) => {
-                let binds_above = !in_function && node.is_empty() && no_code_words && !is_method;
+                let binds_above = !in_function && node.is_empty() && no_code_words;
                 if !binds_above {
                     // Validate signature
                     if let Some(declared_sig) = &binding.signature {
@@ -408,23 +363,7 @@ impl Compiler {
                     }
                 }
 
-                // Add data def local wrapper
-                if let Some((def, span)) = data_def {
-                    node = Node::WithLocal {
-                        def: def.def_index,
-                        inner: SigNode::new(sig, node).into(),
-                        span,
-                    };
-                    sig.update_args(|a| a + 1);
-                }
-
-                if sig == (0, 1)
-                    && !self_referenced
-                    && !is_func
-                    && !is_obverse
-                    && !is_method
-                    && !is_external
-                {
+                if sig == (0, 1) && !self_referenced && !is_func && !is_obverse && !is_external {
                     // Binding is a constant
                     let val = if let [Node::Push(v)] = node.as_slice() {
                         Some(v.clone())

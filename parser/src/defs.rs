@@ -1,6 +1,9 @@
 //! All primitive definitions
 
-use super::*;
+use enum_iterator::Sequence;
+use serde::*;
+
+use crate::{AsciiToken, PrimNames, PrimClass, Purity, SysOpClass};
 
 macro_rules! primitive {
     ($(
@@ -69,17 +72,6 @@ macro_rules! primitive {
                     _ => Some(1)
                 }
             }
-            /// Get the primitive's documentation
-            pub fn doc(&self) -> &'static PrimDoc {
-                match self {
-                    $(Primitive::$variant => {
-                        let doc_str = concat!($doc_rust, $($doc, "\n"),*);
-                        static DOC: OnceLock<PrimDoc> = OnceLock::new();
-                        DOC.get_or_init(|| PrimDoc::from_lines(doc_str))
-                    },)*
-                    Primitive::Sys(op) => op.doc(),
-                }
-            }
             /// Whether the primitive is pure
             pub fn purity(&self) -> Purity {
                 match self {
@@ -95,6 +87,13 @@ macro_rules! primitive {
                     $($(Primitive::$variant => $experimental,)*)*
                     Primitive::Sys(op) => op.is_experimental(),
                     _ => false
+                }
+            }
+            /// Get the primitive's documentation string
+            pub fn doc(&self) -> &'static str {
+                match self {
+                    $(Primitive::$variant => concat!($doc_rust, $($doc, "\n"),*),)*
+                    Primitive::Sys(op) => op.doc(),
                 }
             }
         }
@@ -1285,6 +1284,8 @@ primitive!(
     /// A non-integer scalar count will either remove or duplicate rows at regular intervals.
     /// ex: ▽ 0.5 ⇡10
     /// ex: ▽ 1.5 ⇡10
+    /// A numeric subscripts [keep]s along that many leading axes
+    /// ex: ▽₂ 3 [1_2 3_4]
     ///
     /// [under][keep] allows you to modify part of an array according to a mask.
     /// ex: ⍜▽(+1) ⊸=@s "mississippi"
@@ -1652,6 +1653,8 @@ primitive!(
     /// ex: ⍉ ⧅≠ 2 ⇡5
     /// ex: ⍉ ⧅≠ 3 ⇡5
     /// ex: ⍉ ⧅≠ 4 ⇡5
+    /// `gap``gap``1` will give *all* ways of arranging the rows.
+    /// ex: ⍉ ⧅⋅⋅1 2 ⇡4
     /// If the size is `2`, the function is allowed to return non-booleans. Tuples will be copied as many times as the value.
     /// ex: ⍉ ⧅(+1<) 2 ⇡4
     /// If the second argument is a scalar, the number of tuples that would be returned for the [range] of that number is returned.
@@ -2978,7 +2981,7 @@ primitive!(
     ///
     /// Because [fft] runs on every axis of an array, we can get the frequency domain of each color channel of an image using [under][un][transpose][fft].
     /// ex: Lena
-    ///   : ▽⟜≡▽0.5
+    ///   : ▽₂ 0.5
     ///   : ⌵⍜°⍉≡fft .
     (1, Fft, Algorithm, "fft"),
     /// Convert an operation to be in geometric algebra
@@ -3389,38 +3392,36 @@ primitive!(
     /// Project a voxel array to an image
     ///
     /// [voxels] orthographically projects a 3D array of voxels to an image.
-    /// The first argument is a parameter array.
-    /// The second argument is the voxel array.
     ///
-    /// The parameter array may be a numeric array representing a single parameter or a list of boxed parameters.
-    /// - The first scalar encountered is the scale factor. This is the ratio of voxel size to pixel size.
-    /// - The first 3-element list is the camera position. This position is a vector that will be normalized and placed outside the array.
-    /// - The second 3-element list is a "fog" color. Fog helps to give a sense of depth to the image.
-    ///
-    /// The voxel array must be rank 3 or 4.
+    /// The input voxel array must be rank 3 or 4.
     /// - A rank 3 array produces a grayscale image with no alpha channel.
     /// - A rank 4 array with last axis `2` produces a grayscale image with an alpha channel.
     /// - A rank 4 array with last axis `3` produces an color image with no alpha channel.
     /// - A rank 4 array with last axis `4` produces an color image with an alpha channel.
+    ///
+    /// Accepts 3 optionals arguments:
+    /// - `Fog` - A "fog" color. Fog helps to give a sense of depth to the image. Can be scalar or a list of 3 numbers.
+    /// - `Scale` - The ratio of voxel size to pixel size
+    /// - `Camera` - A camera position vector. It will be normalized and placed outside the array.
     ///
     /// Here is a simple 5x5x5 voxel scene.
     /// ex: ⍥(⍉⊂1)3⬚0↯4_4_4⋯131191
     /// If we project it with no parameters, the result is not very interesting.
     /// ex: # Experimental!
     ///   : ⍥(⍉⊂1)3⬚0↯4_4_4⋯131191
-    ///   : voxels {}
-    /// We can scale up the image by passing a scale factor.
+    ///   : voxels
+    /// We can scale up the image by passing a `Scale` factor.
     /// ex: # Experimental!
     ///   : ⍥(⍉⊂1)3⬚0↯4_4_4⋯131191
-    ///   : voxels {20}
-    /// We can change the camera position by passing a 3-element list.
+    ///   : voxels Scale:20
+    /// We can change the camera position with a 3D `Camera` vector
     /// ex: # Experimental!
     ///   : ⍥(⍉⊂1)3⬚0↯4_4_4⋯131191
-    ///   : voxels {20 [1 2 1]}
-    /// Passing another 3-element list will change the fog color so that we can see depth.
+    ///   : voxels Scale:20 Camera:[1 2 1]
+    /// Passing a `Fog` color lets us see depth.
     /// ex: # Experimental!
     ///   : ⍥(⍉⊂1)3⬚0↯4_4_4⋯131191
-    ///   : voxels {20 [1 2 1] Black}
+    ///   : voxels Scale:20 Camera:[1 2 1] Fog:Black
     ///
     /// The image will be transparent if the voxel array has transparency.
     /// ex: # Experimental!
@@ -3429,7 +3430,7 @@ primitive!(
     ///   : [1_0_0 1_2_2 2_2_2 2_2_3 2_2_4]
     ///   : [[1 1][1 1][1 0.3][1 0.3][1 0.3]]
     ///   : ⌿⍜⊙⊡⊙◌
-    ///   : voxels {20 [1.2 2 0.5] Black}
+    ///   : voxels Scale:20 Camera:[1.2 2 0.5] Fog:Black
     /// Color is also supported.
     /// ex: # Experimental!
     ///   : ↯5_5_5_4 0
@@ -3437,32 +3438,31 @@ primitive!(
     ///   : [1_0_0 1_2_2 2_2_2 2_2_3 2_2_4]
     ///   : [[1 1 1 1][1 1 1 1][1 0 0 0.3][0 1 0 0.3][0 1 1 0.3]]
     ///   : ⌿⍜⊙⊡⊙◌
-    ///   : voxels {20 [1 2 0.5] Black}
+    ///   : voxels Scale:20 Camera:[1 2 0.5] Fog:Black
     ///
     /// Like with normal image arrays, [voxels] supports complex numbers.
     /// The same domain coloring algorithm is used as in [img] and [&ims].
     /// By default, because there is no alpha channel, only numbers with 0 magnitude are transparent.
     /// ex: # Experimental!
     ///   : ⊞+⟜⊞ℂ. -⊸¬ ÷⟜⇡30
-    ///   : voxels {2}
+    ///   : voxels Scale:2
     /// We can set transparency by adding a 4th axis to the array. This is a complex alpha channel where the opacity is the magnitude of the complex number.
     /// ex: # Experimental!
     ///   : ⊞+⟜⊞ℂ. -⊸¬ ÷⟜⇡30
     ///   : ⍜°⍉(⊟⟜(<1⌵)) # Only show <1 magnitude
-    ///   : voxels {2 [0.5 2 2]}
+    ///   : voxels Scale:2 Camera:[0.5 2 2]
     ///
     /// You can show rotation of a voxel array by turning it into a gif.
     /// In this example, we create a list of angles and apply each one to the camera position using [un][atangent].
     /// ex: # Experimental!
-    ///   : # Experimental!
     ///   : -⊸¬ ÷⟜(°⍉⇡)↯3 50    # Cube from ¯1 to 1
     ///   : <0.4⌵-⊙(+∩∿) °⊟₃ ×τ # z = (sin(τx) + sin(τy))/τ
     ///   : ×τ÷⟜⇡30             # Rotation angles
-    ///   : ≡(voxels {2 [1 °∠] ⊙[0 0.5 1]})⊙¤
-    (2, Voxels, Encoding, "voxels", { experimental: true }),
+    ///   : ≡⌟(voxels Scale:2 Camera:[1 °∠] Fog:[0 0.5 1])
+    (1, Voxels, Encoding, "voxels", { experimental: true }),
     /// Render text into an image array
     ///
-    /// In the most basic usage, the first argument is a font size and the second argument is the text to render.
+    /// The first argument is a font size and the second argument is the text to render.
     /// The result is a rank-2 array of pixel values.
     /// In this example, we map the pixel values to ASCII characters to visualize the result.
     /// ex: # Experimental!
@@ -3481,261 +3481,613 @@ primitive!(
     /// ex: # Experimental!
     ///   : layout 15 ⬚""↯∞_12 ⊜□⊸≠@  Lorem
     ///
-    /// Additionally, the first argument can be a list of options.
-    /// The first scalar option is the font size (default 30)
-    /// The second scalar option is the line height (default 1)
-    /// The first array of 2 numbers is the canvas size. Use `∞` to use the smallest possible size.
-    /// The first array of 3 or 4 numbers is the color. If set, the background defaults to transparent.
+    /// 4 optionals arguments are accepted:
+    /// - `LineHeight` - The height of a line relative to the font size (default 1)
+    /// - `Size` - The size of the rendering area. Use `∞` to use the smallest possible size.
+    /// - `Color` - The text color. If set, the background defaults to transparent.
+    /// - `Bg` - The background color.
     /// ex: # Experimental!
-    ///   : $ Uiua is a
-    ///   : $ stack-based
+    ///   : $ Uiua is an
     ///   : $ array-oriented
     ///   : $ programming
     ///   : $ language
-    ///   : layout {30 1.5 300_350 0.5_0.5_1}
-    /// [fill] sets the background color.
+    ///   : layout 30 LineHeight:1.5 Size:300_350 Color:0.5_0.5_1
     /// ex: # Experimental!
-    ///   : ⬚[1 0 0] layout {100 0_1_0} "Green on Red!"
+    ///   : layout 100 Color:Green Bg:Red "Green on Red!"
     (2, Layout, Encoding, "layout", Impure, { experimental: true }),
 );
 
-macro_rules! impl_primitive {
+macro_rules! sys_op {
     ($(
-        $(#[$attr:meta])*
+        #[doc = $doc_rust:literal]
+        $(#[doc = $doc:literal])*
         (
-            $($args:literal)?
-            $(($outputs:expr))?
-            $([$margs:expr])?,
-            $variant:ident $(($($inner:ty),* $(,)?))?
-            $(, $purity:ident)?
-            $(,{ga: $ga:literal})?
+            $args:literal$(($outputs:expr))?$([$mod_args:expr])?,
+            $variant:ident, $class:ident, $name:literal, $long_name:literal
+            $(,$purity:ident)* $(,{experimental: $experimental:literal})?
         )
     ),* $(,)?) => {
-        /// Primitives that exist as an implementation detail
-        #[doc(hidden)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-        #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-        pub enum ImplPrimitive {
+        /// A system function
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence, Serialize, Deserialize)]
+        #[serde(rename_all = "snake_case")]
+        pub enum SysOp {
             $(
-                $(#[$attr])*
-                $variant $(($($inner),*))?,
-            )*
-            UndoDeshape(Option<i32>),
-            EachSub(i32),
-            RowsSub(Subscript<i32>, bool),
-            UndoTransposeN(usize, i32),
-            UndoReverse { n: usize, all: bool },
-            UndoRotate(usize),
-            ReduceDepth(usize),
-            StackN { n: usize, inverse: bool },
-            OnSub(usize),
-            BySub(usize),
-            WithSub(usize),
-            OffSub(usize),
-            SidedFill(SubSide),
-            SidedEncodeBytes(SubSide),
-            DecodeBytes(Option<SubSide>),
-            /// Push the maximum row count of N values
-            MaxRowCount(usize),
-            BothImpl(Subscript<u32>),
-            UnBothImpl(Subscript<u32>),
-            Ga(ga::GaOp, ga::Spec),
+                #[doc = $doc_rust]
+                $variant
+            ),*
         }
 
-        impl ImplPrimitive {
-            pub fn args(&self) -> Option<usize> {
-                Some(match self {
-                    $($(ImplPrimitive::$variant {..}  => $args,)?)*
-                    ImplPrimitive::UndoDeshape(_) => 2,
-                    ImplPrimitive::UndoTransposeN(n, _) => *n,
-                    ImplPrimitive::UndoReverse { n, .. } => *n,
-                    ImplPrimitive::UndoRotate(n) => *n + 1,
-                    ImplPrimitive::ReduceDepth(_) => 1,
-                    ImplPrimitive::StackN { n, .. } => *n,
-                    ImplPrimitive::MaxRowCount(n) => *n,
-                    ImplPrimitive::SidedEncodeBytes(_) | ImplPrimitive::DecodeBytes(_) => 2,
-                    ImplPrimitive::Ga(op, _) => op.args(),
-                    _ => return None
-                })
+        impl SysOp {
+            /// All system functions
+            pub const ALL: [Self; 0 $(+ {stringify!($variant); 1})*] = [
+                $(Self::$variant,)*
+            ];
+            /// Get the system function's short name
+            pub fn name(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => $name),*
+                }
             }
-            pub fn outputs(&self) -> Option<usize> {
-                Some(match self {
-                    $($(ImplPrimitive::$variant {..} => $outputs,)?)*
-                    ImplPrimitive::UndoTransposeN(n, _) => *n,
-                    ImplPrimitive::UndoReverse { n, .. } => *n,
-                    ImplPrimitive::UndoRotate(n) => *n,
-                    ImplPrimitive::StackN { n, .. } => *n,
-                    ImplPrimitive::MaxRowCount(n) => *n + 1,
-                    ImplPrimitive::SidedEncodeBytes(_) | ImplPrimitive::DecodeBytes(_) => 1,
-                    ImplPrimitive::Ga(op, _) => op.outputs(),
-                    _ if self.modifier_args().is_some() => return None,
-                    _ => 1
-                })
+            /// Get the system function's long name
+            pub fn long_name(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => $long_name),*
+                }
             }
+            /// Get the number of arguments the system function expects
+            pub fn args(&self) -> usize {
+                match self {
+                    $(SysOp::$variant => $args,)*
+                }
+            }
+            /// Get the number of function arguments the system function expects if it is a modifier
             pub fn modifier_args(&self) -> Option<usize> {
                 match self {
-                    $($(ImplPrimitive::$variant => Some($margs),)?)*
-                    ImplPrimitive::ReduceDepth(_)
-                    | ImplPrimitive::EachSub(_)
-                    | ImplPrimitive::RowsSub(..) => Some(1),
-                    ImplPrimitive::OnSub(_)
-                    | ImplPrimitive::BySub(_)
-                    | ImplPrimitive::WithSub(_)
-                    | ImplPrimitive::OffSub(_)
-                    | ImplPrimitive::BothImpl(_)
-                    | ImplPrimitive::UnBothImpl(_) => Some(1),
-                    ImplPrimitive::SidedFill(_) => Some(2),
+                    $($(
+                        SysOp::$variant => Some($mod_args),
+                    )?)*
                     _ => None
                 }
             }
+            /// Get the number of outputs the system function returns
+            pub fn outputs(&self) -> usize {
+                match self {
+                    $($(SysOp::$variant => $outputs as usize,)?)*
+                    _ => 1
+                }
+            }
+            /// Get the system function's class
+            pub fn class(&self) -> SysOpClass {
+                match self {
+                    $(SysOp::$variant => SysOpClass::$class),*
+                }
+            }
+            /// Whether the system function is pure
             pub fn purity(&self) -> Purity {
                 match self {
-                    $($(ImplPrimitive::$variant => {Purity::$purity},)*)*
-                    ImplPrimitive::StackN { .. } => Purity::Mutating,
-                    _ => Purity::Pure
+                    $($(SysOp::$variant => Purity::$purity,)*)*
+                    _ => Purity::Impure
+                }
+            }
+            /// Check if the system function is experimental
+            #[allow(unused_parens)]
+            pub fn is_experimental(&self) -> bool {
+                match self {
+                    $($(SysOp::$variant => $experimental,)*)*
+                    _ => false
+                }
+            }
+            /// Get the system function's documentation string
+            pub fn doc(&self) -> &'static str {
+                match self {
+                    $(SysOp::$variant => concat!($doc_rust, $($doc, "\n"),*),)*
                 }
             }
         }
     };
 }
 
-impl_primitive!(
-    // Inverses
-    (2, Root),
-    (1, Cos),
-    (1, Asin),
-    (1, Acos),
-    (1, Exp),
-    (0, UnPop, Impure),
-    (1, UnBits),
-    (1, UnWhere),
-    (1(2), UnCouple),
-    (1(2), UnAdd),
-    (1(2), UnMul),
-    (1(2), UnDiv),
-    (1(2), UnAtan),
-    (1(2), UnComplex),
-    (1, UnUtf8),
-    (1, UnUtf16),
-    (1, UnGraphemes),
-    (1, UnParse),
-    (1, UnFix),
-    (1, UnShape),
-    (1[1], UnScan),
-    (1(2), UnMap),
-    (0(0), UnStack, Impure),
-    (0(0)[1], UnDump, Impure),
-    (0[2], UnFill),
-    (1, Primes),
-    (1, UnBox),
-    (2, AntiDrop),
-    (2, AntiSelect),
-    (2, AntiPick),
-    (2, AntiKeep),
-    (2, AntiRotate),
-    (1(2), UnJoin),
-    (1(2), UnJoinEnd),
-    (2(2), UnJoinShape),
-    (2(2), UnJoinShapeEnd),
-    (3(2), UnJoinShape2),
-    (3(2), UnJoinShape2End),
-    (1(2), UnKeep),
-    (1(2), UnTake),
-    (1(2)[1], UnGroup),
-    (1(2)[1], UnPartition),
-    (1, UnSort, Impure),
-    (1, UnHsv),
-    (1, UnJson),
-    (1, UnBinary),
-    (1, UnCsv),
-    (1, UnXlsx),
-    (1, UnFft),
-    (1, UnDatetime),
-    (2(0), MatchPattern),
-    (2, MatchLe),
-    (2, MatchGe),
-    (1(2), ImageDecode),
-    (1(2), GifDecode),
-    (1(3), AudioDecode),
-    (0, UnRawMode, Impure),
-    (1(0), UnClip, Mutating),
-    // Unders
-    (1, UndoFix),
-    (2, UndoUnBits),
-    (2, AntiBase),
-    (3, UndoSelect),
-    (3, UndoPick),
-    (3, UndoTake),
-    (3, UndoDrop),
-    (2, UndoFirst),
-    (2, UndoLast),
-    (3, UndoKeep),
-    (3, UndoRerank),
-    (2, UndoReshape),
-    (2, UndoWindows),
-    (2, UndoWhere),
-    (2, AntiOrient),
-    (3, UndoAntiOrient),
-    (3(2), UndoJoin),
-    (1(1)[1], UndoPartition1),
-    (3, UndoPartition2),
-    (1(1)[1], UndoGroup1),
-    (3, UndoGroup2),
-    (4, UndoInsert),
-    (3, UndoRemove),
-    (1(0), TryClose),
-    ([2], UnBracket),
-    ([1], UndoRows),
-    ([1], UndoInventory),
-    (2, SetSign),
-    // Optimizations
-    (1, FirstMinIndex),
-    (1, FirstMaxIndex),
-    (1, LastMinIndex),
-    (1, LastMaxIndex),
-    (1, FirstWhere),
-    (1, LastWhere),
-    (1, LenWhere),
-    (2, MemberOfRange),
-    (2, MultidimMemberOfRange),
-    (1, RandomRow, Impure),
-    (1, SortDown),
-    (1, AllSame),
-    (1[1], ReduceContent),
-    ([1], ReduceConjoinInventory),
-    (2(1)[2], ReduceTable),
-    (1, ReplaceRand, Impure),
-    (2, ReplaceRand2, Impure),
-    (1, CountUnique),
-    ((2)[3], Astar),
-    ((2)[3], AstarFirst),
-    ((2)[3], AstarSignLen),
-    ((1)[3], AstarPop),
-    ((1)[3], AstarTake),
-    ((2)[2], PathFirst),
-    ((2)[3], PathSignLen),
-    ((1)[2], PathPop),
-    ((1)[2], PathTake),
-    (2[1], SplitByScalar),
-    (2[1], SplitBy),
-    (2[1], SplitByKeepEmpty),
-    (2, AbsComplex),
-    (2, MatrixDiv),
-    (2, RangeStart),
-    // Implementation details
-    (2(3), Over),
-    (1, NBits(usize)),
-    (1, DeshapeSub(i32)),
-    (1, TransposeN(i32)),
-    (1, Utf16),
-    (1, Retropose),
-    ([2], RepeatWithInverse),
-    ([1], RepeatCountConvergence),
-    (2(1), ValidateType),
-    (2(0), ValidateTypeConsume),
-    (2(0), TestAssert, Impure),
-    /// Validate that a non-boxed variant field has a valid type and rank
-    (1, ValidateNonBoxedVariant),
-    (2(1), ValidateVariant),
-    (2(1), TagVariant),
-);
+sys_op! {
+    /// Pause the execution and print the stack
+    ///
+    /// This is useful for debugging.
+    /// On the website, each [&b], in the same editor, with the same input code, will end execution and print the stack.
+    /// Running the code multiple times will allow the code to advance to the next [&b].
+    /// Try it out!
+    /// ex: # Experimental!
+    ///   : ≡(&b⇌&b) &b °△ &b 3_3 &b
+    /// Once the execution has completed, the final stack state will be shown as normal. Running again will start from the beginning.
+    ///
+    /// In the native interpreter, [&b] pauses execution, prints the stack, and waits for the user to press enter.
+    (0(0), Breakpoint, Misc, "&b", "breakpoint", Mutating, { experimental: true }),
+    /// Print a nicely formatted representation of a value to stdout
+    ///
+    /// [&s] will print the value the same way it would appear at the end of a program, or from [?].
+    /// ex: &s ℂ0 1
+    ///   : &s "hello,\tworld"
+    ///   : &s 1/3
+    ///   : &s π
+    ///   : &s @U
+    ///
+    /// [&s] is equivalent to `rows``&p``pretty`.
+    ///
+    /// To print values in a more standard way, see [&p].
+    (1(0), Show, StdIO, "&s", "show", Mutating),
+    /// Print a value to stdout
+    ///
+    /// Exactly like [&p], except that there is no trailing newline.
+    ///
+    /// See also: [&p], [&epf]
+    (1(0), Prin, StdIO, "&pf", "print and flush", Mutating),
+    /// Print a value to stdout followed by a newline
+    ///
+    /// [&p] differs from [&s] when printing rank 0 or 1 character arrays, and when printing scalar number types.
+    /// ex: &p ℂ0 1
+    ///   : &p "hello,\tworld"
+    ///   : &p 1/3
+    ///   : &p π
+    ///   : &p @U
+    /// [&p] will ignore any level of [box]ing.
+    /// ex: &p □□□"In a box"
+    ///
+    /// See also: [&pf], [&ep]
+    (1(0), Print, StdIO, "&p", "print with newline", Mutating),
+    /// Print a value to stderr
+    ///
+    /// Exactly like [&ep], except that there is no trailing newline.
+    ///
+    /// See also: [&pf], [&ep]
+    (1(0), PrinErr, StdIO, "&epf", "print error and flush", Mutating),
+    /// Print a value to stderr followed by a newline
+    ///
+    /// See also: [&p], [&epf]
+    (1(0), PrintErr, StdIO, "&ep", "print error with newline", Mutating),
+    /// Read a line from stdin
+    ///
+    /// The normal output is a string.
+    /// If EOF is reached, the number `0` is returned instead.
+    /// Programs that wish to properly handle EOF should check for this.
+    (0, ScanLine, StdIO, "&sc", "scan line", Mutating),
+    /// Get the size of the terminal
+    ///
+    /// The result is a 2-element array of the height and width of the terminal.
+    /// Height comes first so that the array can be used as a shape in [reshape].
+    (0, TermSize, Env, "&ts", "terminal size", Mutating),
+    /// Exit the program with a status code
+    (1(0), Exit, Misc, "&exit", "exit", Mutating),
+    /// Set the terminal to raw mode
+    ///
+    /// Expects a boolean.
+    /// If enabled, the terminal will not echo characters or wait for a newline.
+    ///
+    /// [&sc] will still work, but it will not return until the user presses enter.
+    /// To get individual characters, use [&rs] or [&rb] with a count of `1` and a handle of `0`, which is stdin.
+    ///
+    /// [un][&raw] will return the current state of the terminal.
+    /// [under][&raw] will set raw mode, and then revert it to the previous state.
+    (1(0), RawMode, Env, "&raw", "set raw mode", Mutating),
+    /// Get the command line arguments
+    ///
+    /// The first element will always be the name of your script
+    // Doesn't actually mutate, but this is necessary for the LSP
+    (0, Args, Env, "&args", "arguments", Mutating),
+    /// Get the value of an environment variable
+    ///
+    /// Expects a string and returns a string.
+    /// If the environment variable does not exist, an error is thrown.
+    (1, Var, Env, "&var", "environment variable"),
+    /// Run a command and wait for it to finish
+    ///
+    /// Standard IO will be inherited. Returns the exit code of the command.
+    ///
+    /// Expects either a string, a rank `2` character array, or a rank `1` array of [box] strings.
+    (1, RunInherit, Command, "&runi", "run command inherit", Mutating),
+    /// Run a command and wait for it to finish
+    ///
+    /// Standard IO will be captured. The exit code, stdout, and stderr will each be pushed to the stack.
+    ///
+    /// Expects either a string, a rank `2` character array, or a rank `1` array of [box] strings.
+    (1(3), RunCapture, Command, "&runc", "run command capture", Mutating),
+    /// Run a command with streaming IO
+    ///
+    /// Expects either a string, a rank `2` character array, or a rank `1` array of [box] strings.
+    /// Returns 3 stream handles.
+    /// The first can be written to with [&w] to send input to the command's stdin.
+    /// The second and third can be read from with [&rs], [&rb], or [&ru] to read from the command's stdout and stderr.
+    /// Using [&cl] on *all 3* handles will kill the child process.
+    /// [under][&runs] calls [&cl] on all 3 streams automatically.
+    (1(3), RunStream, Command, "&runs", "run command stream", Mutating),
+    /// Change the current directory
+    (1(0), ChangeDirectory, Filesystem, "&cd", "change directory", Mutating),
+    /// Get the contents of the clipboard
+    ///
+    /// Returns a string of the clipboard's contents.
+    /// This is not supported on the web.
+    ///
+    /// The inverse sets the clipboard, expecting a string.
+    /// ex: °&clip +@A⇡6 # Try running then pasting!
+    (0, Clip, Misc, "&clip", "get clipboard contents"),
+    /// Sleep for n seconds
+    ///
+    /// On the web, this example will hang for 1 second.
+    /// ex: ⚂ &sl 1
+    (1(0), Sleep, Misc, "&sl", "sleep", Mutating),
+    /// Read characters formed by at most n bytes from a stream
+    ///
+    /// Expects a count and a stream handle.
+    /// The stream handle `0` is stdin.
+    /// ex: &rs 4 &fo "example.txt"
+    /// Using [infinity] as the count will read until the end of the stream.
+    /// ex: &rs ∞ &fo "example.txt"
+    ///
+    /// [&rs] will attempt to read the given number of *bytes* from the stream.
+    /// If the read bytes are not valid UTF-8, up to 3 additional bytes will be read in an attempt to finish a valid UTF-8 character.
+    ///
+    /// See also: [&rb]
+    (2, ReadStr, Stream, "&rs", "read to string", Mutating),
+    /// Read at most n bytes from a stream
+    ///
+    /// Expects a count and a stream handle.
+    /// The stream handle `0` is stdin.
+    /// ex: &rb 4 &fo "example.txt"
+    /// Using [infinity] as the count will read until the end of the stream.
+    /// ex: &rb ∞ &fo "example.txt"
+    ///
+    /// See also: [&rs]
+    (2, ReadBytes, Stream, "&rb", "read to bytes", Mutating),
+    /// Read from a stream until a delimiter is reached
+    ///
+    /// Expects a delimiter and a stream handle.
+    /// The result will be a rank-`1` byte or character array. The type will match the type of the delimiter.
+    /// The stream handle `0` is stdin.
+    /// ex: &ru "Uiua" &fo "example.txt"
+    (2, ReadUntil, Stream, "&ru", "read until", Mutating),
+    /// Read lines from a stream
+    ///
+    /// [&rl] calls its function on each line in the stream without reading the entire stream into memory.
+    /// Lines are delimited by either `\n` or `\r\n`.
+    /// For each line, it will be pushed onto the stack and the function will be called.
+    /// Additional arguments to the function will be bellow the line.
+    /// Outputs in excess of the number of accumulators will be collected into arrays.
+    (1[1], ReadLines, Stream, "&rl", "read lines", Mutating),
+    /// Write an array to a stream
+    ///
+    /// If the stream is a file, the file may not be written to until it is closed with [&cl].
+    /// The stream handle `1` is stdout.
+    /// The stream handle `2` is stderr.
+    /// ex: &cl &w "Hello, world!" . &fc "file.txt"
+    ///   : &fras "file.txt"
+    (2(0), Write, Stream, "&w", "write", Mutating),
+    /// Invoke a path with the system's default program
+    (1(1), Invoke, Command, "&invk", "invoke", Mutating),
+    /// Close a stream by its handle
+    ///
+    /// This will close files, tcp listeners, and tcp sockets.
+    (1(0), Close, Stream, "&cl", "close handle", Mutating),
+    /// Open a file and return a handle to it
+    ///
+    /// ex: &fo "example.txt"
+    /// The file can be read from with [&rs], [&rb], or [&ru].
+    /// The file can be written to with [&w].
+    /// In some cases, the file may not be actually written to until it is closed with [&cl].
+    /// [under][&fo] calls [&cl] automatically.
+    (1, FOpen, Filesystem, "&fo", "file - open"),
+    /// Create a file and return a handle to it
+    ///
+    /// ex: &fc "file.txt"
+    /// The file can be read from with [&rs], [&rb], or [&ru].
+    /// The file can be written to with [&w].
+    /// In some cases, the file may not be actually written to until it is closed with [&cl].
+    /// [under][&fc] calls [&cl] automatically.
+    (1, FCreate, Filesystem, "&fc", "file - create", Mutating),
+    /// Create a directory
+    ///
+    /// ex: &fmd "path/to/dir"
+    /// Nested directories will be created automatically.
+    (1(0), FMakeDir, Filesystem, "&fmd", "file - make directory", Mutating),
+    /// Delete a file or directory
+    ///
+    /// ex: &fde "example.txt"
+    /// Deletes the file or directory at the given path.
+    /// Be careful with this function, as deleted files and directories cannot be recovered!
+    /// For a safer alternative, see [&ftr].
+    (1(0), FDelete, Filesystem, "&fde", "file - delete", Mutating),
+    /// Move a file or directory to the trash
+    ///
+    /// ex: &ftr "example.txt"
+    /// Moves the file or directory at the given path to the trash.
+    /// This is a safer alternative to [&fde].
+    (1(0), FTrash, Filesystem, "&ftr", "file - trash", Mutating),
+    /// Check if a file, directory, or symlink exists at a path
+    ///
+    /// ex: &fe "example.txt"
+    /// ex: &fe "foo.bar"
+    (1, FExists, Filesystem, "&fe", "file - exists"),
+    /// List the contents of a directory
+    ///
+    /// The result is a list of boxed strings.
+    /// ex: &fld "."
+    (1, FListDir, Filesystem, "&fld", "file - list directory"),
+    /// Check if a path is a file
+    ///
+    /// ex: &fif "example.txt"
+    (1, FIsFile, Filesystem, "&fif", "file - is file"),
+    /// Read all the contents of a file into a string
+    ///
+    /// Expects a path and returns a rank-`1` character array.
+    ///
+    /// ex: &fras "example.txt"
+    /// You can use [under][&fras] to write back to the file after modifying the string.
+    /// ex: ⍜&fras(⊂⊙"\n# Wow!") "example.txt"
+    ///   : &p&fras "example.txt"
+    ///
+    /// See [&frab] for reading into a byte array.
+    (1, FReadAllStr, Filesystem, "&fras", "file - read all to string"),
+    /// Read all the contents of a file into a byte array
+    ///
+    /// Expects a path and returns a rank-`1` numeric array.
+    ///
+    /// ex: &frab "example.txt"
+    /// You can use [under][&frab] to write back to the file after modifying the array.
+    /// ex: ⍜&frab(⊂⊙-@\0"\n# Wow!") "example.txt"
+    ///   : &p&fras "example.txt"
+    ///
+    /// See [&fras] for reading into a rank-`1` character array.
+    (1, FReadAllBytes, Filesystem, "&frab", "file - read all to bytes"),
+    /// Write the entire contents of an array to a file
+    ///
+    /// Expects a path and a rank-`1` array of either numbers or characters.
+    /// The file will be created if it does not exist and overwritten if it does.
+    ///
+    /// The editor on the website has a virtual filesystem. Files written with [&fwa] can be read with [&fras] or [&frab].
+    /// ex: Path ← "test.txt"
+    ///   : &fwa Path +@A⇡26
+    ///   : &fras Path
+    (2(0), FWriteAll, Filesystem, "&fwa", "file - write all", Mutating),
+    /// Show an image
+    ///
+    /// How the image is shown depends on the system backend.
+    ///
+    /// In the default backend, the image is shown in the terminal. Here you can make it use sixel by setting the `UIUA_ENABLE_SIXEL` environment variable to `1`. Otherwise it will try to use the `kitty` or `iTerm` image protocols and fall back to half-block image printing.
+    /// On the web, the image is shown in the output area.
+    ///
+    /// The image must be a rank 2 or 3 numeric array or a rank 2 complex array.
+    /// Axes 0 and 1 contain the rows and columns of the image.
+    /// A rank 2 array is a grayscale image.
+    /// A rank 3 array is an RGB image.
+    /// A complex array is colored with domain coloring and no alpha channel.
+    /// In a rank 3 image array, the last axis must be length 1, 2, 3, or 4.
+    /// A length 1 last axis is a grayscale image.
+    /// A length 2 last axis is a grayscale image with an alpha channel.
+    /// A length 3 last axis is an RGB image.
+    /// A length 4 last axis is an RGB image with an alpha channel.
+    ///
+    /// See also: [img]
+    (1(0), ImShow, Media, "&ims", "image - show", Mutating),
+    /// Show a gif
+    ///
+    /// The first argument is a framerate in seconds.
+    /// The second argument is the gif data and must be a rank 3 or 4 numeric array.
+    /// The rows of the array are the frames of the gif, and their format must conform to that of [img].
+    ///
+    /// See also: [gif]
+    (2(0), GifShow, Media, "&gifs", "gif - show", Mutating),
+    /// Show an APNG
+    ///
+    /// The first argument is a framerate in seconds.
+    /// The second argument is the gif data and must be a rank 3 or 4 numeric array.
+    /// The rows of the array are the frames of the gif, and their format must conform to that of [img].
+    ///
+    /// See also: [apng]
+    (2(0), ApngShow, Media, "&apngs", "apng - show", Mutating),
+    /// Play some audio
+    ///
+    /// The audio must be a rank 1 or 2 numeric array.
+    ///
+    /// A rank 1 array is a list of mono audio samples.
+    /// For a rank 2 array, each row is a sample with multiple channels.
+    ///
+    /// The samples must be between -1 and 1.
+    /// The sample rate is [&asr].
+    ///
+    /// See also: [audio]
+    (1(0), AudioPlay, Media, "&ap", "audio - play", Mutating),
+    /// Get the sample rate of the audio output backend
+    ///
+    /// ex: &asr
+    /// Here is how you can generate a list of sample times for `4` seconds of audio:
+    /// ex: ÷⤙(⇡×) 4 &asr
+    /// Pass that to a periodic function, and you get a nice tone!
+    /// ex: ÷4∿×τ×220 ÷⤙(⇡×) 4 &asr
+    (0, AudioSampleRate, Media, "&asr", "audio - sample rate"),
+    /// Synthesize and stream audio
+    ///
+    /// Expects a function that takes a list of sample times and returns a list of samples.
+    /// The samples returned from the function must either be a rank 1 array or a rank 2 array with 2nd axis length 2.
+    /// The function will be called repeatedly to generate the audio.
+    /// ex: Sp   ← 1.5
+    ///   : Mod  ← ∿×π× # Modulate ? Freq Time
+    ///   : Note ← +110×20⌊÷4◿8
+    ///   : Bass ← ×0.2Mod×⟜(
+    ///   :   ×2+1⌊◿2      # Volume modulation freq
+    ///   : | ±Mod÷Sp⟜Note # Note
+    ///   : )
+    ///   : Kick  ← Mod80√√◿1
+    ///   : Noise ← [⍥⚂10000]
+    ///   : Noisy ← ×⊸(↯△⊙Noise)
+    ///   : Hit   ← Noisy /≠⊞<0.5_0.6 ÷⟜◿2
+    ///   : Hat   ← ×0.3 Noisy <0.1 ÷⟜◿0.25
+    ///   : &ast(÷3/+[⊃(Hat|Kick|Hit|Bass)]×Sp)
+    /// On the web, this will simply use the function to generate a fixed amount of audio.
+    /// How long the audio is can be configured in the editor settings.
+    (0(0)[1], AudioStream, Media, "&ast", "audio - stream", Mutating),
+    /// Create a TCP listener and bind it to an address
+    ///
+    /// Use [&tcpa] on the returned handle to accept connections.
+    ///
+    /// See also: [&tlsl]
+    (1, TcpListen, Tcp, "&tcpl", "tcp - listen", Mutating),
+    /// Create a TLS listener and bind it to an address
+    ///
+    /// This function is currently untested.
+    ///
+    /// Use [&tcpa] on the returned handle to accept connections.
+    ///
+    /// The first argument is an IP address and port to bind.
+    /// The second argument is a cert string.
+    /// The third argument is a key string.
+    ///
+    /// See also: [&tcpl]
+    (3, TlsListen, Tcp, "&tlsl", "tls - listen", Mutating),
+    /// Accept a connection with a TCP or TLS listener
+    ///
+    /// Returns a stream handle
+    /// [under][&tcpl] calls [&cl] automatically.
+    (1, TcpAccept, Tcp, "&tcpa", "tcp - accept", Mutating),
+    /// Create a TCP socket and connect it to an address
+    ///
+    /// Returns a stream handle
+    /// You can make a request with [&w] and read the response with [&rs], [&rb], or [&ru].
+    /// [under][&tcpc] calls [&cl] automatically.
+    /// ex: $ GET / HTTP/1.1
+    ///   : $ Host: example.com
+    ///   : $ Connection: close
+    ///   : $
+    ///   : $
+    ///   : ⍜(&tcpc "example.com:80"|&rs∞⊸&w:)
+    ///
+    /// See also: [&tlsc]
+    (1, TcpConnect, Tcp, "&tcpc", "tcp - connect", Mutating),
+    /// Create a TCP socket with TLS support
+    ///
+    /// Returns a stream handle
+    /// You can make a request with [&w] and read the response with [&rs], [&rb], or [&ru].
+    /// [under][&tlsc] calls [&cl] automatically.
+    /// ex: $ GET / HTTP/1.1
+    ///   : $ Host: example.com
+    ///   : $ Connection: close
+    ///   : $
+    ///   : $
+    ///   : ⍜(&tlsc "example.com:443"|&rs∞⊸&w:)
+    ///
+    /// See also: [&tcpc]
+    (1, TlsConnect, Tcp, "&tlsc", "tls - connect", Mutating),
+    /// Set a TCP socket to non-blocking mode
+    (1, TcpSetNonBlocking, Tcp, "&tcpsnb", "tcp - set non-blocking", Mutating),
+    /// Set the read timeout of a TCP socket in seconds
+    (2(0), TcpSetReadTimeout, Tcp, "&tcpsrt", "tcp - set read timeout", Mutating),
+    /// Set the write timeout of a TCP socket in seconds
+    (2(0), TcpSetWriteTimeout, Tcp, "&tcpswt", "tcp - set write timeout", Mutating),
+    /// Get the connection address of a TCP socket
+    (1, TcpAddr, Tcp, "&tcpaddr", "tcp - address", Mutating),
+    /// Capture an image from a webcam
+    ///
+    /// Takes the index of the webcam to capture from.
+    ///
+    /// Returnes a rank-3 numeric array representing the image.
+    (1, WebcamCapture, Misc, "&camcap", "webcam - capture", Mutating),
+    /// Call a foreign function interface
+    ///
+    /// *Warning ⚠️: Using FFI is deeply unsafe. Calling a function incorrectly is undefined behavior.*
+    ///
+    /// The first argument is a list of boxed strings specifying the source and signature of the foreign function.
+    /// The second argument is a list of values to pass to the foreign function.
+    ///
+    /// The first argument must be of the form `{"lib_path" "return_type" "function_name" "arg1_type" "arg2_type" …}`.
+    /// The lib path is the path to the shared library or DLL that contains the function.
+    /// Type names roughly match C types. The available primitive types are:
+    /// - `void`
+    /// - `char`
+    /// - `short`
+    /// - `int`
+    /// - `long`
+    /// - `long long`
+    /// - `float`
+    /// - `double`
+    /// - `unsigned char`
+    /// - `unsigned short`
+    /// - `unsigned int`
+    /// - `unsigned long`
+    /// - `unsigned long long`
+    /// Suffixing any of these with `*` makes them a pointer type.
+    /// Struct types are defined as a list of types between `{}`s separated by `;`s, i.e. `{int; float}`. A trailing `;` is optional.
+    ///
+    /// Arguments are passed as a list of boxed values.
+    /// If we have a C function `int add(int a, int b)` in a shared library `example.dll`, we can call it like this:
+    /// ex! # Experimental!
+    ///   : Lib ← &ffi ⊂□"example.dll"
+    ///   : Add ← Lib {"int" "add" "int" "int"}
+    ///   : Add {2 3} # 5
+    ///
+    /// Uiua arrays can be passed to foreign functions as pointer-length pairs.
+    /// To do this, specify the type of the list items followed by `:n`, where `n` is the index of the parameter that corresponds to the length.
+    /// The interpreter will automatically pass the number of elements in the array to this parameter.
+    /// Arrays passed in this way will be implicitely [deshape]ed, unless the item type is a struct.
+    /// If we wave a C function `int sum(const int* arr, int len)` in a shared library `example.dll`, we can call it like this:
+    /// ex! # Experimental!
+    ///   : Lib ← &ffi ⊂□"example.dll"
+    ///   : Sum ← Lib {"int" "sum" "const int:1" "int"}
+    ///   : Sum {[1 2 3 4 5]} # 15
+    ///
+    /// [&ffi] calls can return multiple values.
+    /// In addition to the return value, any non-`const` pointer parameters will be interpreted as out-parameters.
+    /// If there is more than one output value (including the return value), [&ffi] will return a list of the boxed output values.
+    /// If we have a C function `int split_head(int* list, int* len)` in a shared library `example.dll`, we can call it like this:
+    /// ex! # Experimental!
+    ///   : Lib ← &ffi ⊂□"example.dll"
+    ///   : SplitHead ← Lib {"int" "split_head" "int:1" "int*"}
+    ///   : SplitHead {[1 2 3 4 5]} # {1 [2 3 4 5]}
+    /// Note that the length parameter is a non-`const` pointer. This is because the function will modify it.
+    ///
+    /// `const char*` parameters and return types are interpreted as null-terminated strings, without an associated length parameter.
+    ///
+    /// Structs can be passed either as lists of boxed values or, if all fields are of the same type, as a normal array.
+    /// If all fields of a struct returned by a foreign function are of the same type, the interpreter will automatically interpret it as an array rather than a list of boxed values.
+    /// If we have a C struct `struct Vec2 { float x; float y; }` and a function `Vec2 vec2_add(Vec2 a, Vec2 b)` in a shared library `example.dll`, we can call it like this:
+    /// ex! # Experimental!
+    ///   : Lib ← &ffi ⊂□"example.dll"
+    ///   : VecII ← "{float; float}"
+    ///   : Add ← Lib {VecII "vec2_add" VecII VecII}
+    ///   : Add {[1 2] [3 4]} # [4 6]
+    ///
+    /// If a foreign function returns or has an out-parameter that is a pointer type, a special array is returned representing the pointer. This array is not useful as a normal array, but it can be passed back as an [&ffi] argument, read from with [&memcpy], or freed with [&memfree].
+    ///
+    /// Coverage of types that are supported for binding is currently best-effort.
+    /// If you encounter a type that you need support for, please [open an issue](https://github.com/uiua-lang/uiua/issues/new).
+    (2, Ffi, Ffi, "&ffi", "foreign function interface", Mutating, { experimental: true }),
+    /// Copy data from a pointer into an array
+    ///
+    /// *Warning ⚠️: [&memcpy] can lead to undefined behavior if used incorrectly.*
+    ///
+    /// This is useful for complex [&ffi] calls that are meant to return arrays.
+    /// Expects a string indicating the type, a pointer, and a length.
+    ///
+    /// The returned array will always be rank-`1`.
+    /// The type of the array depends on the given type.
+    /// Types are specified in the same way as in [&ffi].
+    /// `"char"` will create a character array.
+    /// `"unsigned char"` will create a number array with efficient byte storage.
+    /// All other number types will create a normal number array.
+    ///
+    /// For example, if we have a C function `int* get_ints(int len)` in a shared library `example.dll`, we can call it and copy the result like this:
+    /// ex! # Experimental!
+    ///   : Lib ← &ffi ⊂□"example.dll"
+    ///   : GetInts ← Lib {"int*" "get_ints" "int"}
+    ///   : &memcpy "int":3 GetInts 3
+    ///
+    /// Importantly, [&memcpy] does *not* free the memory allocated by the foreign function.
+    /// Use [&memfree] to free the memory.
+    /// ex! # Experimental!
+    ///   : Lib ← &ffi ⊂□"example.dll"
+    ///   : GetInts ← Lib {"int*" "get_ints" "int"}
+    ///   : ⊃&memfree(&memcpy "int":3) GetInts 3
+    (3, MemCopy, Ffi, "&memcpy", "foreign function interface - copy", Mutating, { experimental: true }),
+    /// Free a pointer
+    ///
+    /// *Warning ⚠️: [&memfree] can lead to undefined behavior if used incorrectly.*
+    ///
+    /// This is useful for freeing memory allocated by a foreign function.
+    /// Expects a pointer.
+    /// See [&memcpy] for an example.
+    (1(0), MemFree, Ffi, "&memfree", "free memory", Mutating, { experimental: true }),
+}

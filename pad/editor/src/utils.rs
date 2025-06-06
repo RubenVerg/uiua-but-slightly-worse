@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
     time::Duration,
 };
-use uiua::UiuaErrorKind;
+use uiua::{PrimDoc, UiuaErrorKind};
 
 use uiua::{
     ast::Item,
@@ -26,11 +26,11 @@ use web_sys::{
     KeyboardEvent, MouseEvent,
 };
 
-use crate::binding_style;
 use crate::{
     backend::{OutputItem, WebBackend},
     binding_class, code_font, modifier_class, prim_sig_class,
 };
+use crate::{binding_style, sig_class};
 
 #[derive(Clone)]
 pub struct ChallengeDef {
@@ -680,6 +680,7 @@ pub fn gen_code_view(id: &str, code: &str) -> View {
                         SpanKind::Subscript(Some(prim), n) => prim_sig_class(*prim, *n),
                         SpanKind::Superscript(_) => "number-literal",
                         SpanKind::MacroDelim(margs) => modifier_class(*margs),
+                        SpanKind::ArgSetter(_) => sig_class((1, 0).into()),
                         _ => "",
                     };
                     match kind {
@@ -765,7 +766,8 @@ pub fn gen_code_view(id: &str, code: &str) -> View {
                         }
                         SpanKind::Primitive(prim, _) => {
                             let name = prim.name();
-                            let mut title = format!("{}: {}", name, prim.doc().short_text());
+                            let mut title =
+                                format!("{}: {}", name, PrimDoc::from(prim).short_text());
                             if let Some(ascii) = prim.ascii() {
                                 title = format!("({}) {}", ascii, title);
                             }
@@ -774,7 +776,8 @@ pub fn gen_code_view(id: &str, code: &str) -> View {
                         SpanKind::Obverse(set_inverses) => {
                             let prim = Primitive::Obverse;
                             let name = prim.name();
-                            let mut title = format!("{}: {}", name, prim.doc().short_text());
+                            let mut title =
+                                format!("{}: {}", name, PrimDoc::from(prim).short_text());
                             if !set_inverses.is_empty() {
                                 title.push('\n');
                                 title.push_str(&set_inverses.to_string());
@@ -1005,6 +1008,21 @@ pub fn gen_code_view(id: &str, code: &str) -> View {
                                 .into_view(),
                             )
                         }
+                        SpanKind::ArgSetter(comment) => {
+                            let class = format!("code-span {color_class}");
+                            frag_views.push(
+                                if let Some(comment) = comment.map(|com| com.to_string()) {
+                                    view! {
+                                        <span class=class data-title=comment>
+                                            {text}
+                                        </span>
+                                    }
+                                    .into_view()
+                                } else {
+                                    view!(<span class=class>{text}</span>).into_view()
+                                },
+                            )
+                        }
                         _ => {
                             let class = format!("code-span {color_class}");
                             frag_views.push(view! { <span class=class>{text}</span> }.into_view())
@@ -1133,7 +1151,7 @@ fn run_code_single(id: &str, code: &str) -> (Vec<OutputItem>, Option<UiuaError>)
             backend.finish();
             (stack, backend)
         }
-        Ok(Err(e)) if matches!(e.kind, UiuaErrorKind::Interrupted) => (
+        Ok(Err(e)) if matches!(*e.kind, UiuaErrorKind::Interrupted) => (
             rt.take_stack(),
             rt.downcast_backend::<WebBackend>().unwrap(),
         ),

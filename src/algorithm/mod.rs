@@ -89,14 +89,20 @@ fn max_shape(a: &[usize], b: &[usize]) -> Shape {
 }
 
 #[derive(Debug)]
-pub struct SizeError(f64);
+pub struct SizeError {
+    elements: f64,
+    elem_size: usize,
+}
 
 impl fmt::Display for SizeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Array of {} elements would be too large",
-            self.0.grid_string(false)
+            "Array of {} {}-byte elements would be too large ({} MB)",
+            self.elements.grid_string(false),
+            self.elem_size,
+            ((self.elements * self.elem_size as f64 * 1e-6 * 1e3).round() * 1e-3)
+                .grid_string(false)
         )
     }
 }
@@ -144,7 +150,10 @@ pub(crate) fn validate_size_impl(
         elements *= size as f64;
     }
     if elements > u32::MAX as f64 {
-        return Err(SizeError(elements));
+        return Err(SizeError {
+            elements,
+            elem_size,
+        });
     }
     let size = elements * elem_size as f64;
 
@@ -179,7 +188,10 @@ pub(crate) fn validate_size_impl(
         })
     });
     if size > max_mb * 1024f64.powi(2) {
-        return Err(SizeError(elements));
+        return Err(SizeError {
+            elements,
+            elem_size,
+        });
     }
     Ok(elements as usize)
 }
@@ -234,7 +246,7 @@ impl FillError for () {
 
 impl FillError for UiuaError {
     fn is_fill(&self) -> bool {
-        self.is_fill
+        self.meta.is_fill
     }
 }
 
@@ -329,7 +341,7 @@ impl FillContext for (&CodeSpan, &Inputs) {
         error.fill()
     }
     fn is_fill_error(error: &Self::Error) -> bool {
-        error.is_fill
+        error.meta.is_fill
     }
 }
 
@@ -640,8 +652,8 @@ pub fn try_(ops: Ops, env: &mut Uiua) -> UiuaResult {
     }
     let backup = env.clone_stack_top(f_sig.args().min(handler_sig.args()))?;
     if let Err(mut err) = env.exec_clean_stack(f) {
-        if err.is_case {
-            err.is_case = false;
+        if err.meta.is_case {
+            err.meta.is_case = false;
             return Err(err);
         }
         if handler_sig.args() > f_sig.args() {

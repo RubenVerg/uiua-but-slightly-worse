@@ -1,6 +1,17 @@
-use crate::DefInfo;
-
 use super::*;
+
+#[derive(Clone)]
+pub(crate) struct DataFuncInfo {
+    pub name: EcoString,
+    pub fields: BTreeMap<EcoString, FieldInfo>,
+}
+
+#[derive(Clone)]
+pub(crate) struct FieldInfo {
+    pub index: usize,
+    pub init_sig: Option<Signature>,
+    pub comment: EcoString,
+}
 
 impl Compiler {
     pub(super) fn data_def(
@@ -31,6 +42,10 @@ impl Compiler {
             data.func = None;
         }
         // Handle top-level named defs as modules
+        let def_comment = prelude
+            .comment
+            .clone()
+            .map(|text| DocComment::from(text.as_str()));
         if top_level {
             if let Some(name) = data.name.clone() {
                 let global_index = self.next_global;
@@ -40,20 +55,18 @@ impl Compiler {
                     public: true,
                 };
 
-                let comment = prelude.comment.clone();
                 let (module, ()) = self
                     .in_scope(ScopeKind::Module(name.value.clone()), |comp| {
                         comp.data_def(data, false, prelude)
                     })?;
 
                 // Add global
-                let comment = comment.map(|text| DocComment::from(text.as_str()));
                 self.asm.add_binding_at(
                     local,
                     BindingKind::Module(module),
                     Some(name.span.clone()),
                     BindingMeta {
-                        comment,
+                        comment: def_comment,
                         ..Default::default()
                     },
                 );
@@ -61,7 +74,7 @@ impl Compiler {
                 self.scope.add_module_name(name.value.clone(), local);
                 (self.code_meta.global_references).insert(name.span.clone(), local.index);
                 return Ok(());
-            } else if self.scope.data_def.is_some() {
+            } else if self.scope.has_data_def {
                 return Err(self.error(
                     data.span(),
                     "A module cannot have multiple unnamed data definitions",
@@ -75,9 +88,6 @@ impl Compiler {
         } else {
             None
         };
-        let def_index = self.asm.bind_def(DefInfo {
-            name: def_name.clone(),
-        });
 
         struct Field {
             name: EcoString,
@@ -300,11 +310,11 @@ impl Compiler {
             self.next_global += 1;
             let comment = match (&def_name, &field.comment) {
                 (Some(def_name), Some(comment)) => {
-                    format!("Get `{def_name}`'s `{field_name}`\n{comment}")
+                    format!("Get {def_name}'s {field_name}\n{comment}")
                 }
-                (Some(def_name), None) => format!("Get `{def_name}`'s `{field_name}`"),
-                (None, Some(comment)) => format!("Get `{field_name}`\n{comment}"),
-                (None, None) => format!("Get `{field_name}`"),
+                (Some(def_name), None) => format!("Get {def_name}'s {field_name}"),
+                (None, Some(comment)) => format!("Get {field_name}\n{comment}"),
+                (None, None) => format!("Get {field_name}"),
             };
             let meta = BindingMeta {
                 comment: Some(DocComment::from(comment.as_str())),
@@ -324,7 +334,7 @@ impl Compiler {
         };
         self.next_global += 1;
         let comment = match &def_name {
-            Some(def_name) => format!("Names of `{def_name}`'s fields"),
+            Some(def_name) => format!("Names of {def_name}'s fields"),
             None => "Names of fields".into(),
         };
         let name = Ident::from("Fields");
@@ -372,14 +382,19 @@ impl Compiler {
                 sig.update_outputs(|o| o + arg.sig.outputs());
                 inner.push(arg.node);
             }
-            Node::Array {
+            let mut node = Node::Array {
                 len: fields.len(),
                 inner: inner.into(),
                 boxed,
                 allow_ext: true,
                 prim: None,
                 span,
+            };
+            if data.func.is_some() {
+                let size = fields.len();
+                node.push(Node::UseArgs { size, span });
             }
+            node
         } else {
             Node::empty()
         };
@@ -401,29 +416,31 @@ impl Compiler {
             Signature::new(constructor_args, 1),
             node,
         );
-        let contructor_local = LocalName {
+        let constr_local = LocalName {
             index: self.next_global,
             public: true,
         };
         self.next_global += 1;
-        let mut comment = match &def_name {
-            Some(def_name) => format!("Create a new `{def_name}`\n{def_name} ?"),
-            None => "Create a new data instance\nInstance ?".into(),
+        let mut constr_comment = match (&def_name, data.func.is_some()) {
+            (Some(name), false) => format!("Create a new {name}\n{name} ?"),
+            (Some(name), true) => format!("Create a new array of {name}'s args\n{name}Args ?"),
+            (None, false) => "Create a new data instance\nInstance ?".into(),
+            (None, true) => "Create a new args instance\nArgs ?".into(),
         };
         for field in &fields {
             match field.init.as_ref().map(|sn| sn.sig.args()) {
                 Some(0) => continue,
                 Some(1) | None => {
-                    comment.push(' ');
-                    comment.push_str(&field.name);
+                    constr_comment.push(' ');
+                    constr_comment.push_str(&field.name);
                 }
                 Some(n) => {
                     for i in 0..n {
-                        comment.push(' ');
-                        comment.push_str(&field.name);
+                        constr_comment.push(' ');
+                        constr_comment.push_str(&field.name);
                         let mut i = i + 1;
                         while i > 0 {
-                            comment.push(SUBSCRIPT_DIGITS[i % 10]);
+                            constr_comment.push(SUBSCRIPT_DIGITS[i % 10]);
                             i /= 10;
                         }
                     }
@@ -431,107 +448,100 @@ impl Compiler {
             }
         }
 
-        // Scope for data function and/or methods
-        let (method_module, _) = self.in_scope(ScopeKind::Method(def_index), |comp| {
-            // Local getters
-            for field in &fields {
-                let field_name = &field.name;
-                let id = FunctionId::Named(field_name.clone());
-                let node = Node::from_iter([
-                    Node::GetLocal {
-                        def: def_index,
-                        span: field.span,
-                    },
-                    comp.global_index(field.global_index, true, field.name_span.clone()),
-                ]);
-                let func = comp.asm.add_function(id, Signature::new(0, 1), node);
-                let local = LocalName {
-                    index: comp.next_global,
-                    public: true,
-                };
-                comp.next_global += 1;
-                let comment = match &def_name {
-                    Some(def_name) => format!("`{def_name}`'s `{field_name}` argument"),
-                    None => format!("`{field_name}` argument"),
-                };
-                let meta = BindingMeta {
-                    comment: Some(DocComment::from(comment.as_str())),
-                    ..Default::default()
-                };
-                comp.compile_bind_function(field.name.clone(), local, func, field.span, meta)?;
-            }
-            // Self getter
-            {
-                let node = Node::GetLocal {
-                    def: def_index,
-                    span,
-                };
-                let id = FunctionId::Named("Self".into());
-                let func = comp.asm.add_function(id, Signature::new(0, 1), node);
-                let local = LocalName {
-                    index: comp.next_global,
-                    public: true,
-                };
-                comp.next_global += 1;
-                let comment = match &def_name {
-                    Some(def_name) => format!("Get bound `{def_name}`"),
-                    None => "Get bound data instance".into(),
-                };
-                let meta = BindingMeta {
-                    comment: Some(DocComment::from(comment.as_str())),
-                    ..Default::default()
-                };
-                comp.compile_bind_function("Self".into(), local, func, span, meta)?;
-            }
-            Ok(())
-        })?;
-
-        let scope_data_def = ScopeDataDef {
-            def_index,
-            module: method_module,
-        };
-        self.scope.data_def = Some(scope_data_def.clone());
+        self.scope.has_data_def = true;
 
         let mut function_stuff = None;
+        let mut args_function_stuff = None;
         // Data functions
         if let Some(words) = data.func {
             self.experimental_error(&data.init_span, || {
                 "Data functions are experimental. To use them, add \
                 `# Experimental!` to the top of the file."
             });
-            self.in_method(&scope_data_def, |comp| {
+            self.in_scope(ScopeKind::Binding, |comp| {
                 let word_span =
                     (words.first().unwrap().span.clone()).merge(words.last().unwrap().span.clone());
+                // Forbid variant
                 if data.variant {
                     comp.add_error(word_span.clone(), "Variants may not have functions");
                 }
-                let inner = comp.words_sig(words)?;
                 let span = comp.add_span(word_span.clone());
-                let mut construct = Node::Call(constructor_func.clone(), span);
-                for _ in 0..inner.sig.args() {
-                    construct = Node::Mod(
-                        Primitive::Dip,
-                        eco_vec![construct.sig_node().unwrap()],
-                        span,
-                    );
+                // Compile function
+                let names = fields.iter().map(|field| {
+                    let local = LocalName {
+                        index: field.global_index,
+                        public: false,
+                    };
+                    (field.name.clone(), local)
+                });
+                let (_, mut sn) = comp.in_scope(ScopeKind::AllInModule, move |comp| {
+                    comp.scope.names.extend(names);
+                    comp.words_sig(words)
+                })?;
+
+                // Make with args function
+                if !fields.iter().any(|field| field.name == "Args") {
+                    let mut sn = sn.clone();
+                    let size = fields.len();
+                    sn.node.prepend(Node::UseArgs { size, span });
+                    let local = LocalName {
+                        index: comp.next_global,
+                        public: true,
+                    };
+                    comp.next_global += 1;
+                    let func =
+                        comp.asm
+                            .add_function(FunctionId::Named("Args".into()), sn.sig, sn.node);
+                    args_function_stuff = Some((local, func, span));
                 }
-                let node = Node::from_iter([
-                    construct,
-                    Node::WithLocal {
-                        def: def_index,
-                        inner: inner.into(),
-                        span,
-                    },
-                ]);
-                let sig = comp.sig_of(&node, &word_span)?;
+
+                // Add constructor
+                sn.node.prepend(Node::Call(constructor_func.clone(), span));
+                sn.sig = sn.sig.compose(Signature::new(constructor_args, 1));
+                // Make function
                 let local = LocalName {
                     index: comp.next_global,
                     public: true,
                 };
                 comp.next_global += 1;
-                let func =
-                    comp.asm
-                        .add_function(FunctionId::Named(constructor_name.clone()), sig, node);
+                let func = comp.asm.add_function(
+                    FunctionId::Named(constructor_name.clone()),
+                    sn.sig,
+                    sn.node,
+                );
+                let fields = (fields.iter().enumerate())
+                    .map(|(index, field)| {
+                        let init_sig = field.init.as_ref().map(|sn| sn.sig);
+                        let field_name = &field.name;
+                        let comment = match (&def_name, &field.comment) {
+                            (Some(def_name), Some(comment)) => {
+                                format!("Set {def_name}'s {field_name}\n{comment}")
+                            }
+                            (Some(def_name), None) => format!("Set {def_name}'s {field_name}"),
+                            (None, Some(comment)) => format!("Set {field_name}\n{comment}"),
+                            (None, None) => format!("Set {field_name}"),
+                        }
+                        .into();
+                        let info = FieldInfo {
+                            index,
+                            init_sig,
+                            comment,
+                        };
+                        (field.name.clone(), info)
+                    })
+                    .collect();
+
+                // Register data function info
+                let info = Arc::new(DataFuncInfo {
+                    name: def_name.clone().unwrap_or_default(),
+                    fields,
+                });
+                comp.data_function_info.insert(local.index, info.clone());
+                comp.data_function_info
+                    .insert(constr_local.index, info.clone());
+                if let Some((local, ..)) = &args_function_stuff {
+                    comp.data_function_info.insert(local.index, info);
+                }
                 function_stuff = Some((local, func, span));
                 Ok(())
             })?;
@@ -539,21 +549,30 @@ impl Compiler {
 
         // Bind the call function
         if let Some((local, func, span)) = function_stuff {
-            self.compile_bind_function("Call".into(), local, func, span, BindingMeta::default())?;
+            let meta = BindingMeta {
+                comment: def_comment,
+                ..Default::default()
+            };
+            self.compile_bind_function("Call".into(), local, func, span, meta)?;
+        }
+        if let Some((local, func, span)) = args_function_stuff {
+            let meta = BindingMeta {
+                comment: Some(DocComment::from(if let Some(name) = &def_name {
+                    format!("Call {name}'s function from its constructed array")
+                } else {
+                    "Call the function from its constructed array".into()
+                })),
+                ..Default::default()
+            };
+            self.compile_bind_function("Args".into(), local, func, span, meta)?;
         }
 
         // Bind the constructor
         let meta = BindingMeta {
-            comment: Some(DocComment::from(comment.as_str())),
+            comment: Some(DocComment::from(constr_comment.as_str())),
             ..Default::default()
         };
-        self.compile_bind_function(
-            constructor_name,
-            contructor_local,
-            constructor_func,
-            span,
-            meta,
-        )?;
+        self.compile_bind_function(constructor_name, constr_local, constructor_func, span, meta)?;
 
         Ok(())
     }

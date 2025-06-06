@@ -1,8 +1,3 @@
-# Experimental!
-~Foo {Bar: °1type|Baz: ×2 ← +1}
-⍤⤙≍ {@a 6} {Foo!⊃Bar Baz} Foo @a 5
-⍤⤙≍ Foo @a 9 °⊸Foo~Baz 10 Foo @a 5
-
 ┌─╴M
   |Foo {Bar Baz}
   |Qux [x y z]
@@ -20,15 +15,6 @@
 ⍤⤙≍ "⟨0 4 1⟩" M~Format M~Qux 0 4 1
 ⍤⤙≍ "Name: Dan" M~Format M~Sed "Name" "Dan"
 ⍤⤙≍ "Wir!" M~Format M~Wir
-
-~Quad [a b c] ÷×2a -b ⊟¯.√ℂ0 -/×4_a_c ×.b
-⍤⤙≍ ℂ0 1_2 Quad 1 ¯3 2
-
-~Foo [x] +x
-⍤⤙≍ 8 Foo 3 5
-
-~Foo [x] ⊟ x /+ 1_2_3
-⍤⤙≍ [10 6] Foo 10
 
 ~Foo [Bar Baz ← +]
 ⍤⤙≍ [5 5] Foo 5 2 3
@@ -49,11 +35,6 @@ S~PopA
 S~PushB
 ⍤⤙≍ S [1 2] [4 5 6 3] [7 8 9]
 
-~Foo {A: °0type|B: °0type}
-⍤⤙≍ [7 42] ⊟ °Foo Foo 7 42
-~Foo [A: °0type|B: °0type]
-⍤⤙≍ [7 42] ⊟ °Foo Foo 7 42
-
 ┌─╴Foo
   |Bar [A]
   |Baz [A]
@@ -68,22 +49,6 @@ S~PushB
 ~Foo [Bar]
 ⍤⤙≍ ¤[1 2 3] Foo [1 2 3]
 
-┌─╴Foo
-  ~ {Bar Baz}
-  ~AddBar     ← +Bar
-  ~Sum        ← AddBar Baz # ? Foo
-  ~WithBarSum ← Foo~Sum New 10 Baz
-  ~WithBar    ← Self °Bar
-  ~IncrBar    ← Self⍜Bar+¹
-  ~Add        ← Foo ⊃(+Bar Foo~Bar|+Baz Foo~Baz)
-└─╴
-⍤⤙≍ 13 Foo~AddBar 10 Foo 3 5
-⍤⤙≍ 8 Foo~Sum Foo 3 5
-⍤⤙≍ 15 Foo~WithBarSum Foo 3 5
-⍤⤙≍ Foo 10 5 Foo~WithBar 10 Foo 3 5
-⍤⤙≍ Foo 4 5 Foo~IncrBar Foo 3 5
-⍤⤙≍ Foo 23 15 Foo~Add Foo 20 10 Foo 3 5
-
 ~Foo {Bar ← 5}
 F! ← ^0 Foo
 ⍤⤙≍ 5 F!Foo!Bar
@@ -91,3 +56,53 @@ F! ← ^0 Foo
 # Unnamed top-level def
 ~ {Foo Bar}
 ⍤⤙≍ [3 5] [⊃Foo Bar] New 3 5
+
+# Experimental!
+
+# Field validators
+~Foo {Bar: °1type|Baz: ×2 ← +1}
+⍤⤙≍ {@a 6} {Foo!⊃Bar Baz} Foo @a 5
+⍤⤙≍ Foo @a 9 °⊸Foo~Baz 10 Foo @a 5
+
+~Foo {A: °0type|B: °0type}
+⍤⤙≍ [7 42] ⊟ °Foo Foo 7 42
+~Foo [A: °0type|B: °0type]
+⍤⤙≍ [7 42] ⊟ °Foo Foo 7 42
+
+# Data functions
+~Foo [X ← 0] ⊟ ⊓X(/+ 1_2_3)
+⍤⤙≍ [0 6] Foo
+⍤⤙≍ [5 6] Foo X:5
+
+~F {A ← 1|B ← 2|C ← 3} ∘
+⍤⤙≍ {1 2 3} F
+⍤⤙≍ {1 2 5} F C:5
+⍤⤙≍ {0 2 5} F A:0 C:5
+⍤⤙≍ {0 2 5} F C:5 A:0
+⍤⤙≍ {0 9 5} F C:5 A:0 B:9
+
+~F {A ← +|B C ← 0} ∘
+⍤⤙≍ {3 4 0} F 1 2 4
+⍤⤙≍ {3 4 5} F 1 C:5 2 4
+
+~F {A ← 0|B C ← 0} ∘
+M! ← F^0
+⍤⤙≍ F A:2 3 M!A:2 3
+
+┌─╴Range
+  ~ {Min ← 0|Max Inclusive ← 0} ⍜-⇡ ⊃Min(+⊃Max Inclusive)
+  ~Incl {Min ← 0} Call Inclusive:1 Min:Min
+  APL ← Call Inclusive:1 Min:1
+└─╴
+⍤⤙≍ ⇡5 Range 5
+⍤⤙≍ ⇡₁5 Range~APL 5
+⍤⤙≍ ⇡₄6 Range Min:4 10
+⍤⤙≍ ⇡₄7 Range~Incl Min:4 10
+
+~Run {A ← 0|B ← 1|C} ≡°□
+⍤⤙≍ [0 1 2] Run 2
+⍤⤙≍ {2 1 5} Run~New A:2 5
+⍤⤙≍ [2 8 5] Run~Args B:8 Run~New A:2 5
+
+~F {A ← 0|B ← 0|C ← 0|D ← 0} ∘
+⍤⤙≍ {2 3 4 1} F D:1 ⊓A:C: 2 B:3 4

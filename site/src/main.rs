@@ -409,6 +409,8 @@ fn NotFound() -> impl IntoView {
 
 #[cfg(test)]
 fn prim_html(prim: Primitive, glyph_only: bool, hide_docs: bool) -> String {
+    use uiua::PrimDoc;
+
     let symbol_class = format!("prim-glyph {}", uiua_editor::prim_class(prim));
     let symbol = prim.to_string();
     let name = if !glyph_only && symbol != prim.name() {
@@ -433,7 +435,7 @@ fn prim_html(prim: Primitive, glyph_only: bool, hide_docs: bool) -> String {
         title.push('\n');
     }
     if !hide_docs {
-        let doc = prim.doc();
+        let doc = PrimDoc::from(prim);
         if glyph_only && !title.is_empty() && !matches!(prim, Primitive::Sys(_)) {
             title.push_str(": ");
         }
@@ -698,11 +700,23 @@ fn Hd<'a>(id: &'a str, #[prop(optional)] class: &'a str, children: Children) -> 
     }
 }
 
+#[component]
+#[allow(clippy::needless_lifetimes)]
+fn Hd3<'a>(id: &'a str, #[prop(optional)] class: &'a str, children: Children) -> impl IntoView {
+    let id = id.to_string();
+    view! {
+        <h3 id={id.clone()}>
+            <a class={format!("header {class}")} href={ format!("#{id}") }>{children()}</a>
+        </h3>
+    }
+}
+
 #[cfg(test)]
 #[test]
 fn gen_primitives_json() {
     use serde::*;
     use std::{collections::BTreeMap, fs, ops::Not};
+    use uiua::PrimDoc;
 
     #[derive(Serialize)]
     struct PrimDef {
@@ -726,7 +740,7 @@ fn gen_primitives_json() {
 
     let mut prims = BTreeMap::new();
     for prim in Primitive::all() {
-        let doc = prim.doc();
+        let doc = PrimDoc::from(prim);
         prims.insert(
             prim.name(),
             PrimDef {

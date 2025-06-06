@@ -6,8 +6,8 @@ use ecow::{eco_vec, EcoVec};
 use enum_iterator::{all, Sequence};
 
 use crate::{
-    algorithm::validate_size, ast::SubSide, cowslice::CowSlice, fill::FillValue, Array, ArrayFlags,
-    ArrayMeta, ArrayValue, Boxed, Complex, Lambda, Shape, Uiua, UiuaResult, Value,
+    algorithm::validate_size, cowslice::CowSlice, fill::FillValue, Array, ArrayFlags, ArrayMeta,
+    Boxed, Complex, Shape, SubSide, Lambda, Uiua, UiuaResult, Value, ArrayValue,
 };
 
 use super::FillContext;

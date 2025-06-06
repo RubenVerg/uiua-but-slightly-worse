@@ -1,7 +1,7 @@
 # Experimental!
 
 LibPath ← ⊡1&args
-Lib     ← &ffi ⊂LibPath
+Lib     ← &ffi ⊂LibPath # Track caller!
 
 ⍤⟜≍: 8 Lib {"int" "add" "int" "int"} {3 5}
 ⍤⟜≍: 13 Lib {"int" "strlen" "const char*"} {"Hello, World!"}
@@ -45,3 +45,9 @@ VoidStruct ← "{void*; void*}"
 °□₂ Lib {VoidStruct "make_void_struct_a" "int"} {5}
 ⍤⤙≍ [5] ⊃&memfree(&memcpy "int"⊙1)
 ⍤⤙≍ NULL
+
+⍤⤙≍ 1 Lib {"unsigned char" "first_byte" "const unsigned char*"} {[1 2 3]}
+Bytes ← "{unsigned char*}"
+⍤⤙≍ 1 Lib {"unsigned char" "bytes_first_byte" Bytes} {{[1 2 3]}}
+
+⍤⤙≍ "0x" ↙2⊢pretty Lib {"int*" "pointerify" "int"} {5}

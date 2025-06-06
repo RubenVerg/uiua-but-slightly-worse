@@ -9,7 +9,7 @@ mod pre_eval;
 use std::{
     cell::RefCell,
     cmp::Ordering,
-    collections::{BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     env::current_dir,
     fmt, fs,
     iter::{once, repeat_n},
@@ -30,18 +30,20 @@ use crate::{
     check::nodes_sig,
     format::{format_word, format_words},
     function::DynamicFunction,
-    ident_modifier_args,
-    lex::{CodeSpan, Sp, Span},
     lsp::{CodeMeta, Completion, ImportSrc, SetInverses, SigDecl},
+    media::{LayoutParam, VoxelsParam},
+    parse::ident_modifier_args,
     parse::{
         flip_unsplit_items, flip_unsplit_lines, max_placeholder, parse, split_items, split_words,
     },
-    Array, ArrayValue, Assembly, BindingKind, BindingMeta, Boxed, CustomInverse, Diagnostic,
-    DiagnosticKind, DocComment, DocCommentSig, Function, FunctionId, GitTarget, Ident,
-    ImplPrimitive, InputSrc, IntoInputSrc, IntoSysBackend, Node, PrimClass, Primitive, Purity,
-    RunMode, SemanticComment, SigNode, Signature, SysBackend, Uiua, UiuaError, UiuaErrorKind,
-    UiuaResult, Value, CONSTANTS, EXAMPLE_UA, SUBSCRIPT_DIGITS, VERSION,
+    Array, ArrayValue, Assembly, BindingKind, BindingMeta, Boxed, CodeSpan, CustomInverse,
+    Diagnostic, DiagnosticKind, DocComment, DocCommentSig, Function, FunctionId, GitTarget, Ident,
+    ImplPrimitive, InputSrc, IntoInputSrc, IntoSysBackend, Node, NumericSubscript, NumericSuperscript, PrimClass,
+    Primitive, Purity, RunMode, SemanticComment, SigNode, Signature, Sp, Span, SubSide, Subscript,
+    SysBackend, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value, CONSTANTS, EXAMPLE_UA,
+    SUBSCRIPT_DIGITS, VERSION,
 };
+pub(crate) use data::*;
 pub use pre_eval::PreEvalMode;
 
 /// The Uiua compiler
@@ -91,7 +93,15 @@ pub struct Compiler {
     macro_env: Uiua,
     /// Start addresses
     start_addrs: Vec<usize>,
+    /// Data function info, maps Call index to info
+    data_function_info: HashMap<usize, Arc<DataFuncInfo>>,
+    /// Names of argument setters
+    set_args: SetArgs,
+    /// Temporarily stashed argument setters
+    setter_stash: Vec<(SetterStashKind, SetArgs)>,
 }
+
+type SetArgs = IndexMap<Ident, (usize, CodeSpan)>;
 
 impl Default for Compiler {
     fn default() -> Self {
@@ -119,6 +129,9 @@ impl Default for Compiler {
             pre_eval_mode: PreEvalMode::default(),
             macro_env: Uiua::default(),
             start_addrs: Vec::new(),
+            data_function_info: HashMap::new(),
+            set_args: IndexMap::new(),
+            setter_stash: Vec::new(),
         }
     }
 }
@@ -130,6 +143,12 @@ struct BindingPrelude {
     no_inline: bool,
     external: bool,
     deprecation: Option<EcoString>,
+}
+
+#[derive(Debug, Clone)]
+enum SetterStashKind {
+    Scope(ScopeKind),
+    Modifier(Option<Primitive>),
 }
 
 type LocalNames = IndexMap<Ident, LocalName>;
@@ -191,8 +210,8 @@ pub(crate) struct Scope {
     comment: Option<EcoString>,
     /// Map local names to global indices
     names: LocalNames,
-    /// Scope's data def index
-    data_def: Option<ScopeDataDef>,
+    /// Whether the scope has a data def defined
+    has_data_def: bool,
     /// Number of named data variants
     data_variants: usize,
     /// Whether to allow experimental features
@@ -209,8 +228,6 @@ enum ScopeKind {
     File(FileScopeKind),
     /// A scope in a named module
     Module(Ident),
-    /// A scope in a data definition method
-    Method(usize),
     /// A scope that includes all bindings in a module
     AllInModule,
     /// A temporary scope, probably for a macro
@@ -229,13 +246,6 @@ enum FileScopeKind {
     Git,
 }
 
-#[derive(Debug, Clone)]
-struct ScopeDataDef {
-    def_index: usize,
-    /// Module for local getters
-    module: Module,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct MacroLocal {
     macro_index: usize,
@@ -249,7 +259,7 @@ impl Default for Scope {
             file_path: None,
             comment: None,
             names: IndexMap::new(),
-            data_def: None,
+            has_data_def: false,
             data_variants: 0,
             experimental: false,
             experimental_error: false,
@@ -382,6 +392,10 @@ impl Compiler {
     fn scopes(&self) -> impl Iterator<Item = &Scope> {
         once(&self.scope).chain(self.higher_scopes.iter().rev())
     }
+    #[allow(dead_code)]
+    fn scopes_mut(&mut self) -> impl Iterator<Item = &mut Scope> {
+        once(&mut self.scope).chain(self.higher_scopes.iter_mut().rev())
+    }
     fn scopes_to_file(&self) -> impl Iterator<Item = &Scope> {
         let already_file = matches!(self.scope.kind, ScopeKind::File(_));
         once(&self.scope).chain(
@@ -410,9 +424,17 @@ impl Compiler {
         f: impl FnOnce(&mut Self) -> UiuaResult<T>,
     ) -> UiuaResult<(Module, T)> {
         self.higher_scopes.push(take(&mut self.scope));
+        self.setter_stash.push((
+            SetterStashKind::Scope(kind.clone()),
+            take(&mut self.set_args),
+        ));
         self.scope.kind = kind;
+
         let res = f(self);
+
         let scope = replace(&mut self.scope, self.higher_scopes.pop().unwrap());
+        self.set_args.extend(self.setter_stash.pop().unwrap().1);
+
         let res = res?;
         let module = Module {
             comment: scope.comment,
@@ -420,22 +442,6 @@ impl Compiler {
             experimental: scope.experimental,
         };
         Ok((module, res))
-    }
-    fn in_method<T>(
-        &mut self,
-        def: &ScopeDataDef,
-        f: impl FnOnce(&mut Self) -> UiuaResult<T>,
-    ) -> UiuaResult<T> {
-        self.higher_scopes.push(take(&mut self.scope));
-        self.scope.kind = ScopeKind::Method(def.def_index);
-        self.scope.names.extend(
-            (def.module.names)
-                .iter()
-                .map(|(name, local)| (name.clone(), *local)),
-        );
-        let res = f(self);
-        self.scope = self.higher_scopes.pop().unwrap();
-        res
     }
     fn load_impl(&mut self, input: &str, src: InputSrc) -> UiuaResult<&mut Self> {
         let node_start = self.asm.root.len();
@@ -462,6 +468,8 @@ impl Compiler {
         self.start_addrs.push(&base as *const u8 as usize);
         let res = self.catching_crash(input, |env| env.items(items, ItemCompMode::TopLevel));
         self.start_addrs.pop();
+
+        self.forbid_arg_setters(None);
 
         // Optimize root
         // We only optimize if this is not an import
@@ -670,11 +678,12 @@ impl Compiler {
             anyway
         }
         let in_test = self.scopes().any(|sc| sc.kind == ScopeKind::Test);
-        let can_run = match self.mode {
-            RunMode::Normal => !in_test,
-            RunMode::Test => in_test,
-            RunMode::All => true,
-        };
+        let can_run = mode != ItemCompMode::TopLevel
+            || match self.mode {
+                RunMode::Normal => !in_test,
+                RunMode::Test => in_test,
+                RunMode::All => true,
+            };
         if line.is_empty() || !(can_run || must_run || words_should_run_anyway(&line)) {
             return Ok(());
         }
@@ -994,10 +1003,7 @@ impl Compiler {
     ) {
         let mut spandex: Option<usize> = None;
         // Validate comment signature
-        if let Ok(mut sig) = node.sig() {
-            if let ScopeKind::Method(_) = self.scope.kind {
-                sig.update_args(|a| a + 1);
-            }
+        if let Ok(sig) = node.sig() {
             if !comment_sig.matches_sig(sig) {
                 let span = *spandex.get_or_insert_with(|| self.add_span(span.clone()));
                 self.emit_diagnostic(
@@ -1036,8 +1042,7 @@ impl Compiler {
         }
     }
     fn args(&mut self, words: Vec<Sp<Word>>) -> UiuaResult<EcoVec<SigNode>> {
-        words
-            .into_iter()
+        (words.into_iter())
             .filter(|w| w.value.is_code())
             .map(|w| self.word_sig(w))
             .collect()
@@ -1277,7 +1282,7 @@ impl Compiler {
                 parts.push(curr_part);
                 Node::Format(parts, span)
             }
-            Word::Ref(r) => self.reference(r)?,
+            Word::Ref(r) => self.reference(r),
             Word::IncompleteRef { path, in_macro_arg } => 'blk: {
                 if let Some((_, locals)) = self.ref_path(&path, in_macro_arg)? {
                     self.add_error(
@@ -1363,7 +1368,7 @@ impl Compiler {
                         .collect();
                     match Value::from_row_values(values, &(&word.span, &self.asm.inputs)) {
                         Ok(val) => return Ok(Node::new_push(val)),
-                        Err(e) if e.is_fill => {}
+                        Err(e) if e.meta.is_fill => {}
                         Err(e) => return Err(e),
                     }
                 }
@@ -1479,7 +1484,7 @@ impl Compiler {
                                 .insert(word.span.clone(), val.shape.clone());
                             return Ok(Node::new_push(val));
                         }
-                        Err(e) if e.is_fill => {}
+                        Err(e) if e.meta.is_fill => {}
                         Err(e) => return Err(e),
                     }
                 }
@@ -1533,6 +1538,27 @@ impl Compiler {
                     This is a bug in the interpreter",
                 );
                 Node::empty()
+            }
+            Word::ArgSetter(set) => {
+                let span = self.add_span(word.span);
+                let index = if let Some((_, existing)) = self.set_args.get(&set.ident.value) {
+                    let message =
+                        format!("{} has already been set in this scope.", set.ident.value);
+                    let error = self
+                        .error(set.ident.span, message)
+                        .with_info([("Set here".into(), Some(existing.clone().into()))]);
+                    self.errors.push(error);
+                    0
+                } else {
+                    let index = self.set_args.len()
+                        + self.setter_stash.iter().map(|s| s.1.len()).sum::<usize>();
+                    (self.set_args).insert(set.ident.value.clone(), (index, set.ident.span));
+                    index
+                };
+                Node::from([
+                    Node::Label(set.ident.value, span),
+                    Node::SetArg { index, span },
+                ])
             }
         })
     }
@@ -1781,21 +1807,29 @@ impl Compiler {
 
         Ok(Some((names, path_locals)))
     }
-    fn reference(&mut self, r: Ref) -> UiuaResult<Node> {
+    fn reference(&mut self, r: Ref) -> Node {
         if r.path.is_empty() {
             self.ident(r.name.value, r.name.span, r.in_macro_arg)
-        } else if let Some((path_locals, local)) = self.ref_local(&r)? {
-            self.validate_local(&r.name.value, local, &r.name.span);
-            for (local, comp) in path_locals.into_iter().zip(&r.path) {
-                self.validate_local(&comp.module.value, local, &comp.module.span);
-                (self.code_meta.global_references).insert(comp.module.span.clone(), local.index);
-            }
-            self.code_meta
-                .global_references
-                .insert(r.name.span.clone(), local.index);
-            Ok(self.global_index(local.index, false, r.name.span))
         } else {
-            self.ident(r.name.value, r.name.span, r.in_macro_arg)
+            match self.ref_local(&r) {
+                Ok(Some((path_locals, local))) => {
+                    self.validate_local(&r.name.value, local, &r.name.span);
+                    for (local, comp) in path_locals.into_iter().zip(&r.path) {
+                        self.validate_local(&comp.module.value, local, &comp.module.span);
+                        (self.code_meta.global_references)
+                            .insert(comp.module.span.clone(), local.index);
+                    }
+                    self.code_meta
+                        .global_references
+                        .insert(r.name.span.clone(), local.index);
+                    self.global_index(&r.name.value, local.index, r.name.span)
+                }
+                Ok(None) => self.ident(r.name.value, r.name.span, r.in_macro_arg),
+                Err(e) => {
+                    self.errors.push(e);
+                    Node::new_push(Value::default())
+                }
+            }
         }
     }
     fn completions(&self, prefix: &str, names: &LocalNames, public_only: bool) -> Vec<Completion> {
@@ -1824,7 +1858,7 @@ impl Compiler {
         }
         completions
     }
-    fn ident(&mut self, ident: Ident, span: CodeSpan, skip_local: bool) -> UiuaResult<Node> {
+    fn ident(&mut self, ident: Ident, span: CodeSpan, skip_local: bool) -> Node {
         // Add completions
         let completions = self.completions(&ident, &self.scope.names, false);
         if !completions.is_empty() {
@@ -1835,28 +1869,30 @@ impl Compiler {
             // Name exists in binding scope
             self.validate_local(&ident, local, &span);
             (self.code_meta.global_references).insert(span.clone(), local.index);
-            Ok(self.global_index(local.index, true, span))
+            self.global_index(&ident, local.index, span)
         } else if let Some(curr) =
             (self.current_bindings.last_mut()).filter(|curr| curr.name == ident)
         {
             // Name is a recursive call
-            let Some(sig) = curr.signature else {
-                return Err(self.error(
-                    span,
+            curr.recurses += 1;
+            let global_index = curr.global_index;
+            (self.code_meta.global_references).insert(span.clone(), global_index);
+            let sig = curr.signature.unwrap_or_else(|| {
+                self.add_error(
+                    span.clone(),
                     format!(
                         "Recursive function `{ident}` must have a \
                         signature declared after the ←."
                     ),
-                ));
-            };
-            curr.recurses += 1;
-            (self.code_meta.global_references).insert(span.clone(), curr.global_index);
-            Ok(Node::CallGlobal(curr.global_index, sig))
+                );
+                Signature::new(1, 1)
+            });
+            Node::CallGlobal(global_index, sig)
         } else if let Some(local) = self.find_name(&ident, skip_local) {
             // Name exists in scope
             self.validate_local(&ident, local, &span);
             (self.code_meta.global_references).insert(span.clone(), local.index);
-            Ok(self.global_index(local.index, true, span))
+            self.global_index(&ident, local.index, span)
         } else if let Some(constant) = CONSTANTS.iter().find(|c| c.name == ident) {
             // Name is a built-in constant
             if let Some(suggestion) = constant.deprecation {
@@ -1876,13 +1912,14 @@ impl Compiler {
             self.code_meta
                 .constant_references
                 .insert(span.clone().sp(ident));
-            Ok(Node::Push(
+            Node::Push(
                 constant
                     .value
                     .resolve(self.scope_file_path(), &*self.backend()),
-            ))
+            )
         } else {
-            Err(self.error(span, format!("Unknown identifier `{ident}`")))
+            self.add_error(span, format!("Unknown identifier `{ident}`"));
+            Node::new_push(Value::default())
         }
     }
     fn scope_file_path(&self) -> Option<&Path> {
@@ -1893,40 +1930,51 @@ impl Compiler {
         }
         None
     }
-    fn global_index(&mut self, index: usize, single_ident: bool, span: CodeSpan) -> Node {
+    fn global_index(&mut self, name: &str, index: usize, span: CodeSpan) -> Node {
+        self.global_index_impl(name, index, true, span)
+    }
+    fn global_index_impl(
+        &mut self,
+        name: &str,
+        index: usize,
+        top_level: bool,
+        span: CodeSpan,
+    ) -> Node {
         let binfo = &mut self.asm.bindings.make_mut()[index];
         binfo.used = true;
         let bkind = binfo.kind.clone();
         match bkind {
-            BindingKind::Const(Some(val)) => Node::new_push(val),
-            BindingKind::Const(None) => Node::CallGlobal(index, Signature::new(0, 1)),
+            BindingKind::Const(Some(val)) => {
+                if top_level {
+                    self.forbid_arg_setters((name, &span));
+                }
+                Node::new_push(val)
+            }
+            BindingKind::Const(None) => {
+                if top_level {
+                    self.forbid_arg_setters((name, &span));
+                }
+                Node::CallGlobal(index, Signature::new(0, 1))
+            }
             BindingKind::Func(f) => {
-                let span = self.add_span(span);
-                let root = &self.asm[&f];
-                let sig = f.sig;
-                let mut node = Node::Call(f, span);
-                if let (true, &Node::WithLocal { def, .. }) = (single_ident, root) {
-                    if self.scopes().any(|sc| sc.kind == ScopeKind::Method(def)) {
-                        let mut inner = Node::GetLocal { def, span };
-                        for _ in 0..sig.args().saturating_sub(1) {
-                            inner = Node::Mod(
-                                Primitive::Dip,
-                                eco_vec![inner.sig_node().unwrap()],
-                                span,
-                            );
-                        }
-                        node.prepend(inner);
-                    }
+                let spandex = self.add_span(span.clone());
+                let mut node = Node::Call(f, spandex);
+                if !self.set_args.is_empty() {
+                    node.push(Node::ClearArgs);
+                }
+                // Handle data functions
+                if let Some(info) = self.data_function_info.get(&index).cloned() {
+                    node.prepend(self.sort_args(&info.name, info.fields.clone(), &span))
+                } else {
+                    self.forbid_arg_setters((name, &span));
                 }
                 node
             }
             BindingKind::Import(path) => {
                 if let Some(local) = self.imports.get(&path).and_then(|m| m.names.get("Call")) {
                     self.code_meta.global_references.remove(&span);
-                    self.code_meta
-                        .global_references
-                        .insert(span.clone(), local.index);
-                    self.global_index(local.index, single_ident, span)
+                    (self.code_meta.global_references).insert(span.clone(), local.index);
+                    self.global_index(name, local.index, span)
                 } else {
                     self.add_error(
                         span,
@@ -1937,6 +1985,7 @@ impl Compiler {
                 }
             }
             global @ (BindingKind::Module(_) | BindingKind::Scope(_)) => {
+                // Handle called modules
                 let names = match &global {
                     BindingKind::Module(m) => &m.names,
                     BindingKind::Scope(i) => {
@@ -1944,12 +1993,10 @@ impl Compiler {
                     }
                     _ => unreachable!(),
                 };
-                if let Some(local) = names.get("Call").or_else(|| names.get("New")) {
+                if let Some(&local) = names.get("Call").or_else(|| names.get("New")) {
                     self.code_meta.global_references.remove(&span);
-                    self.code_meta
-                        .global_references
-                        .insert(span.clone(), local.index);
-                    self.global_index(local.index, single_ident, span)
+                    (self.code_meta.global_references).insert(span.clone(), local.index);
+                    self.global_index_impl(name, local.index, false, span.clone())
                 } else {
                     self.add_error(
                         span,
@@ -2110,8 +2157,21 @@ impl Compiler {
     }
     fn primitive(&mut self, prim: Primitive, span: CodeSpan) -> Node {
         self.validate_primitive(prim, &span);
-        let span = self.add_span(span);
-        Node::Prim(prim, span)
+        let spandex = self.add_span(span.clone());
+        let mut node = Node::Prim(prim, spandex);
+
+        match prim {
+            Primitive::Voxels => {
+                node.prepend(self.sort_args("voxels", VoxelsParam::field_info(), &span))
+            }
+            Primitive::Layout => {
+                node.prepend(self.sort_args("layout", LayoutParam::field_info(), &span))
+            }
+            prim if prim.glyph().is_none() => self.forbid_arg_setters((prim.name(), &span)),
+            _ => {}
+        }
+
+        node
     }
     #[allow(clippy::match_single_binding, unused_parens)]
     fn subscript(&mut self, sub: Subscripted, span: CodeSpan) -> UiuaResult<Node> {
@@ -2162,11 +2222,17 @@ impl Compiler {
                 let Some(side) = self.subscript_side_only(&scr, prim.format()) else {
                     return Ok(self.primitive(prim, span));
                 };
-                self.experimental_error_it(&scr.span, || format!("Sided {}", prim.format()));
+                self.experimental_error_it(&scr.span, || {
+                    format!("Sided {}", prim.format())
+                });
                 let sub_span = self.add_span(scr.span);
                 let mut node = Node::Prim(Primitive::Fix, sub_span);
                 if side == SubSide::Right {
-                    node = Node::Mod(Primitive::Dip, eco_vec![node.sig_node().unwrap()], sub_span);
+                    node = Node::Mod(
+                        Primitive::Dip,
+                        eco_vec![node.sig_node().unwrap()],
+                        sub_span,
+                    );
                 }
                 node.push(self.primitive(prim, span));
                 node
@@ -2175,6 +2241,7 @@ impl Compiler {
                 let Some(side) = self.subscript_side_only(&scr, EncodeBytes.format()) else {
                     return Ok(self.primitive(EncodeBytes, span));
                 };
+                self.validate_primitive(prim, &span);
                 let span = self.add_span(span);
                 Node::ImplPrim(ImplPrimitive::SidedEncodeBytes(side), span)
             }
@@ -2182,6 +2249,7 @@ impl Compiler {
                 let Some(n) = self.subscript_n_only(&scr, prim.format()) else {
                     return Ok(self.primitive(prim, span));
                 };
+                self.validate_primitive(prim, &span);
                 match prim {
                     prim if prim.sig().is_some_and(|sig| sig == (2, 1))
                         && prim
@@ -2272,7 +2340,7 @@ impl Compiler {
                         },
                     },
                     Join => match self.positive_subscript(n, Join, &span) {
-                        0 => Node::empty(),
+                        0 => Node::new_push(Value::default()),
                         1 => Node::Prim(Identity, self.add_span(span)),
                         n => {
                             Node::from_iter(repeat_n(Node::Prim(Join, self.add_span(span)), n - 1))
@@ -2353,24 +2421,10 @@ impl Compiler {
                             Node::Prim(Add, span),
                         ])
                     }
-                    Identity => {
-                        let n = self.positive_subscript(n, Identity, &span);
-                        if n == 0 {
-                            Node::empty()
-                        } else {
-                            let span = self.add_span(span);
-                            let mut res = Node::Prim(Identity, span);
-                            let mut sig = 0;
-                            for _ in 0..n {
-                                res = Node::Mod(
-                                    Dip,
-                                    EcoVec::from_iter([SigNode::new((sig, sig), res)]),
-                                    span,
-                                );
-                                sig += 1;
-                            }
-                            res
-                        }
+                    Keep => {
+                        let n = self.positive_subscript(n, Keep, &span);
+                        let span = self.add_span(span);
+                        Node::ImplPrim(ImplPrimitive::MultiKeep(n), span)
                     }
                     _ => {
                         self.add_error(
@@ -2717,6 +2771,138 @@ impl Compiler {
                 format!("Cannot infer function signature: {e}"),
             )
         })
+    }
+    fn sort_args(
+        &mut self,
+        def_name: &str,
+        mut used: BTreeMap<EcoString, FieldInfo>,
+        span: &CodeSpan,
+    ) -> Node {
+        let set_args = take(&mut self.set_args);
+
+        // Forbid accessing arguments from outside a modifier
+        let stashed: Vec<_> = self
+            .setter_stash
+            .iter_mut()
+            .flat_map(|(kind, list)| take(list).into_iter().map(|pair| (kind.clone(), pair)))
+            .collect();
+        'outer: for require_known in [true, false] {
+            for (kind, (name, (_, setter_span))) in &stashed {
+                if !require_known || set_args.contains_key(name) {
+                    let owned;
+                    let kind = match kind {
+                        SetterStashKind::Scope(ScopeKind::Function) => "function",
+                        SetterStashKind::Modifier(None)
+                        | SetterStashKind::Scope(ScopeKind::AllInModule) => "modifier",
+                        SetterStashKind::Modifier(Some(prim)) => {
+                            owned = prim.format().to_string();
+                            &owned
+                        }
+                        SetterStashKind::Scope(ScopeKind::Binding) => "binding",
+                        SetterStashKind::Scope(ScopeKind::File(_)) => "file",
+                        SetterStashKind::Scope(ScopeKind::Temp(_)) => "macro",
+                        SetterStashKind::Scope(ScopeKind::Module(_)) => "module",
+                        SetterStashKind::Scope(ScopeKind::Test) => "test scope",
+                    };
+                    let error = self.error(
+                        span.clone(),
+                        format!("{def_name} cannot access args from inside a {kind}"),
+                    );
+                    let info = [(
+                        format!("{name} is outside the {kind}"),
+                        Some(setter_span.clone().into()),
+                    )];
+                    self.errors.push(error.with_info(info));
+                    break 'outer;
+                }
+            }
+        }
+
+        if set_args.is_empty() {
+            return Node::empty();
+        }
+
+        // Collect arguments
+        let mut unused = None;
+        let mut indices = EcoVec::new();
+        for (name, (set_index, setter_span)) in set_args {
+            if let Some(info) = used.remove(name.as_str()) {
+                if let Some(sig) = info.init_sig {
+                    if sig != (0, 1) {
+                        self.add_error(
+                            setter_span,
+                            format!(
+                                "Optional args must have an initializer with signature {}, \
+                                but {def_name}~{name} has signature {}",
+                                Signature::new(0, 1),
+                                sig
+                            ),
+                        );
+                        continue;
+                    }
+                } else {
+                    self.add_error(
+                        setter_span,
+                        format!(
+                            "Optional args must have an initializer, \
+                            but {def_name}~{name} does not have one"
+                        ),
+                    );
+                    continue;
+                }
+                indices.push((set_index, info.index));
+                self.code_meta
+                    .arg_setter_docs
+                    .insert(setter_span, info.comment);
+            } else {
+                unused.get_or_insert((name, setter_span));
+            }
+        }
+        if let Some((name, setter_span)) = unused {
+            self.unused_setter_error(
+                &name,
+                setter_span,
+                (def_name, span.clone(), used.into_keys().collect()),
+            );
+        }
+
+        Node::SortArgs { indices }
+    }
+    fn unused_setter_error<'a>(
+        &mut self,
+        setter_name: &str,
+        setter_span: CodeSpan,
+        func_info: impl Into<Option<(&'a str, CodeSpan, Vec<EcoString>)>>,
+    ) {
+        let error = self.error(
+            setter_span,
+            format!("Optional argument {setter_name} is not used"),
+        );
+        let info = (func_info.into()).map(|(function_name, span, options)| {
+            let mut message = format!("Not used in {function_name}");
+            if !options.is_empty() {
+                message.push_str(". Available fields: ");
+                for (i, option) in options.into_iter().enumerate() {
+                    if i > 0 {
+                        message.push_str(", ");
+                    }
+                    message.push_str(&option);
+                }
+            }
+            (message, Some(span.into()))
+        });
+        self.errors.push(error.with_info(info))
+    }
+    fn forbid_arg_setters<'a>(&mut self, span: impl Into<Option<(&'a str, &'a CodeSpan)>>) {
+        let set_arg = self.set_args.drain(..).next();
+        if let Some((name, (_, setter_span))) = set_arg {
+            self.unused_setter_error(
+                &name,
+                setter_span,
+                span.into()
+                    .map(|(function_name, span)| (function_name, span.clone(), Vec::new())),
+            );
+        }
     }
 }
 

@@ -18,7 +18,8 @@ use serde::*;
 use crate::{
     check::SigCheckError,
     compile::invert::{InversionError, InversionResult},
-    Assembly, BindingKind, DynamicFunction, Function, ImplPrimitive, Primitive, Signature, Value,
+    Assembly, BindingKind, DynamicFunction, Function, ImplPrimitive, Primitive, Purity, Signature,
+    Value,
 };
 
 node!(
@@ -73,12 +74,14 @@ node!(
     NoInline(inner(Arc<Node>)),
     /// Track the caller of this node
     TrackCaller(inner(Arc<Node>)),
-    /// Bind a local value
-    WithLocal { def: usize, inner: Arc<SigNode>, span: usize },
-    /// Get a local value
-    GetLocal { def: usize, span: usize },
-    /// Set a local value
-    SetLocal { def: usize, span: usize },
+    /// Set an optional argument
+    SetArg { index: usize, span: usize },
+    /// Sort optional arguments
+    SortArgs { indices: EcoVec<(usize, usize)> },
+    /// Use optional arguments
+    UseArgs { size: usize, span: usize },
+    /// Clear optional arguments
+    ClearArgs,
     /// Push a value onto the stack
     (#[serde(untagged)] rep),
     Push(val(Value)),
@@ -601,7 +604,6 @@ impl Node {
             Node::Mod(_, args, _) | Node::ImplMod(_, args, _) => {
                 Box::new(args.iter().map(|sn| &sn.node))
             }
-            Node::WithLocal { inner, .. } => Box::new(once(&inner.node)),
             Node::CustomInverse(cust, _) => Box::new(cust.nodes().map(|sn| &sn.node)),
             _ => Box::new([].into_iter()),
         }
@@ -616,7 +618,6 @@ impl Node {
             Node::Mod(_, args, _) | Node::ImplMod(_, args, _) => {
                 Box::new(args.make_mut().iter_mut().map(|sn| &mut sn.node))
             }
-            Node::WithLocal { inner, .. } => Box::new(once(&mut Arc::make_mut(inner).node)),
             Node::CustomInverse(cust, _) => {
                 Box::new(Arc::make_mut(cust).nodes_mut().map(|sn| &mut sn.node))
             }
@@ -781,26 +782,12 @@ impl fmt::Debug for Node {
             Node::TrackCaller(inner) => {
                 f.debug_tuple("track-caller").field(inner.as_ref()).finish()
             }
-            Node::WithLocal { def: id, inner, .. } => {
-                write!(f, "bind-local {id} (")?;
-                inner.fmt(f)?;
-                write!(f, ")")
-            }
-            Node::GetLocal { def, .. } => write!(f, "get-local {def}"),
-            Node::SetLocal { def, .. } => write!(f, "set-local {def}"),
+            Node::SetArg { index, .. } => write!(f, "set-arg {index}"),
+            Node::SortArgs { indices: rise, .. } => write!(f, "sort-args {rise:?}"),
+            Node::UseArgs { .. } => write!(f, "use-args"),
+            Node::ClearArgs => write!(f, "clear-args"),
         }
     }
-}
-
-/// Levels of purity for an operation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Purity {
-    /// The operation visibly affects the environment
-    Mutating,
-    /// The operation reads from the environment but does not visibly affect it
-    Impure,
-    /// The operation is completely pure
-    Pure,
 }
 
 impl Node {
@@ -852,8 +839,11 @@ impl Node {
                 Node::CustomInverse(cust, _) => (cust.normal.as_ref().ok())
                     .or(cust.un.as_ref())
                     .is_some_and(|sn| recurse(&sn.node, purity, asm, visited)),
-                Node::WithLocal { inner, .. } => recurse(&inner.node, purity, asm, visited),
                 Node::Dynamic(_) => false,
+                Node::SetArg { .. }
+                | Node::SortArgs { .. }
+                | Node::UseArgs { .. }
+                | Node::ClearArgs => false,
                 _ => true,
             };
             visited.truncate(len);
@@ -897,7 +887,6 @@ impl Node {
                 Node::CustomInverse(cust, _) => (cust.normal.as_ref().ok())
                     .or(cust.un.as_ref())
                     .is_some_and(|sn| recurse(&sn.node, asm, visited)),
-                Node::WithLocal { inner, .. } => recurse(&inner.node, asm, visited),
                 _ => true,
             };
             visited.truncate(len);
@@ -926,7 +915,6 @@ impl Node {
                     .or(cust.un.as_ref())
                     .is_some_and(|sn| recurse(&sn.node, asm, visited)),
                 Node::Array { inner, .. } => recurse(inner, asm, visited),
-                Node::WithLocal { inner, .. } => recurse(&inner.node, asm, visited),
                 _ => false,
             };
             visited.truncate(len);
@@ -967,7 +955,6 @@ impl Node {
                     .iter()
                     .find_map(|br| recurse(&br.node, asm, spans, visited)),
                 Node::Array { inner, .. } => recurse(inner, asm, spans, visited),
-                Node::WithLocal { inner, .. } => recurse(&inner.node, asm, spans, visited),
                 _ => None,
             };
             visited.truncate(len);
@@ -1019,7 +1006,6 @@ impl Node {
                         recurse(&inner[0].node, asm, visited)
                     }
                     Node::Call(f, _) => visited.insert(f) && recurse(&asm[f], asm, visited),
-                    Node::WithLocal { inner, .. } => recurse(&inner.node, asm, visited),
                     _ => false,
                 }
             };

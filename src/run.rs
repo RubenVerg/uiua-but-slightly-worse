@@ -21,13 +21,12 @@ use threadpool::ThreadPool;
 
 use crate::{
     algorithm::{self, validate_size_impl},
-    ast::SubSide,
     fill::{Fill, FillValue},
     invert::match_format_pattern,
-    lex::Span,
-    Array, Assembly, BindingKind, BindingMeta, Boxed, CodeSpan, Compiler, Function, FunctionId,
-    Ident, Inputs, IntoSysBackend, LocalName, Node, Primitive, Report, SafeSys, SigNode, Signature,
-    SysBackend, TraceFrame, UiuaError, UiuaErrorKind, UiuaResult, Value, VERSION,
+    run_prim_func, run_prim_mod, Array, Assembly, BindingKind, BindingMeta, Boxed, CodeSpan,
+    Compiler, Function, FunctionId, Ident, Inputs, IntoSysBackend, LocalName, Node, Primitive,
+    Report, SafeSys, SigNode, Signature, Span, SubSide, SysBackend, TraceFrame, UiuaError,
+    UiuaErrorKind, UiuaResult, Value, VERSION,
 };
 
 /// The Uiua interpreter
@@ -49,6 +48,8 @@ pub(crate) struct Runtime {
     pub(crate) call_stack: Vec<StackFrame>,
     /// The local stack
     pub(crate) local_stack: EcoVec<(usize, Value)>,
+    /// Set args
+    pub(crate) set_args: Vec<(Value, usize)>,
     /// The stack for tracking recursion points
     recur_stack: Vec<usize>,
     /// The fill stack
@@ -197,6 +198,7 @@ impl Default for Runtime {
                 ..Default::default()
             }],
             local_stack: EcoVec::new(),
+            set_args: Vec::new(),
             recur_stack: Vec::new(),
             fill_stack: Vec::new(),
             fill_boundary_stack: Vec::new(),
@@ -384,7 +386,7 @@ impl Uiua {
             .unwrap_or_else(Err);
         let mut push_error = |te: UiuaError| match &mut res {
             Ok(()) => res = Err(te),
-            Err(e) => e.multi.push(te),
+            Err(e) => e.meta.multi.push(te),
         };
         if self.asm.test_assert_count > 0 {
             let total_run = self.rt.test_results.len();
@@ -493,10 +495,12 @@ impl Uiua {
         }
         let res = match node {
             Node::Run(nodes) => nodes.into_iter().try_for_each(|node| self.exec(node)),
-            Node::Prim(prim, span) => self.with_prim_span(span, Some(prim), |env| prim.run(env)),
+            Node::Prim(prim, span) => {
+                self.with_prim_span(span, Some(prim), |env| run_prim_func(&prim, env))
+            }
             Node::ImplPrim(prim, span) => self.with_span(span, |env| prim.run(env)),
             Node::Mod(prim, args, span) => {
-                self.with_prim_span(span, Some(prim), |env| prim.run_mod(args, env))
+                self.with_prim_span(span, Some(prim), |env| run_prim_mod(&prim, args, env))
             }
             Node::ImplMod(prim, args, span) => self.with_span(span, |env| prim.run_mod(args, env)),
             Node::Push(val) => {
@@ -751,38 +755,40 @@ impl Uiua {
                 self.rt.call_stack.last_mut().unwrap().track_caller = true;
                 self.exec(inner)
             }
-            Node::WithLocal { def, inner, span } => self.with_span(span, |env| {
-                let val = env.remove_nth_back(inner.sig.args())?;
-                env.rt.local_stack.push((def, val));
-                let res = env.exec(inner);
-                env.rt.local_stack.pop();
-                res
+            Node::SetArg { index, span } => self.with_span(span, |env| {
+                let val = env.pop(1)?;
+                env.rt.set_args.push((val, index));
+                Ok(())
             }),
-            Node::GetLocal { def, span } => self.with_span(span, |env| {
-                for (i, val) in env.rt.local_stack.iter().rev() {
-                    if *i == def {
-                        env.push(val.clone());
-                        return Ok(());
+            Node::SortArgs { indices } => {
+                for (_, idx) in &mut self.rt.set_args {
+                    if let Some((_, index)) = indices.iter().find(|(i, _)| i == idx) {
+                        *idx = *index;
                     }
                 }
-                Err(env.error(match &env.asm.def(def).name {
-                    Some(name) => format!("Not currently in a scope for def `{name}`"),
-                    None => "Not currently in a scope for data def".into(),
-                }))
-            }),
-            Node::SetLocal { def, span } => self.with_span(span, |env| {
-                let new = env.pop(1)?;
-                for (i, val) in env.rt.local_stack.make_mut().iter_mut().rev() {
-                    if *i == def {
-                        *val = new.clone();
-                        return Ok(());
-                    }
+                Ok(())
+            }
+            Node::UseArgs { size, span } => self.with_span(span, |env| {
+                let mut target = env.pop(1)?;
+                if target.row_count() != size {
+                    return Err(env.error(format!(
+                        "Args array should be length {size}, but its shape is {}",
+                        target.shape
+                    )));
                 }
-                Err(env.error(match &env.asm.def(def).name {
-                    Some(name) => format!("Not currently in a scope for def `{name}`"),
-                    None => "Not currently in a scope for data def".into(),
-                }))
+                for (mut row, index) in take(&mut env.rt.set_args) {
+                    if let Value::Box(_) = target {
+                        row.box_if_not();
+                    }
+                    target.set_row(index, row, env)?;
+                }
+                env.push(target);
+                Ok(())
             }),
+            Node::ClearArgs => {
+                self.rt.set_args.clear();
+                Ok(())
+            }
         };
         if self.rt.time_instrs {
             let end_time = self.rt.backend.now();
@@ -937,7 +943,7 @@ impl Uiua {
             if frame.track_caller {
                 err.track_caller(span);
             } else {
-                err.trace.push(TraceFrame { id: frame.id, span });
+                err.meta.trace.push(TraceFrame { id: frame.id, span });
             }
             return Err(err);
         }
@@ -1353,13 +1359,6 @@ impl Uiua {
     pub(crate) fn truncate_under_stack(&mut self, size: usize) {
         self.rt.under_stack.truncate(size);
     }
-    pub(crate) fn remove_nth_back(&mut self, n: usize) -> UiuaResult<Value> {
-        let len = self.rt.stack.len();
-        if n >= len {
-            return Err(self.error(format!("Stack was empty getting argument {}", n + 1)));
-        }
-        Ok(self.rt.stack.remove(len - n - 1))
-    }
     /// Pop `n` values from the stack
     pub fn pop_n(&mut self, n: usize) -> UiuaResult<Vec<Value>> {
         let height = self.require_height(n)?;
@@ -1518,6 +1517,7 @@ impl Uiua {
                     .collect(),
                 under_stack: Vec::new(),
                 local_stack: self.rt.local_stack.clone(),
+                set_args: Vec::new(),
                 fill_stack: Vec::new(),
                 fill_boundary_stack: Vec::new(),
                 unfill_stack: Vec::new(),

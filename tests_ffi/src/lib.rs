@@ -201,6 +201,11 @@ pub unsafe extern "C" fn array_ptr(arr: *const c_int, len: c_int) -> *const c_in
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn first_byte(arr: *const c_uchar) -> c_uchar {
+    *arr
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dummy_md5(
     m: *const c_uchar,
     len: c_int,
@@ -244,6 +249,21 @@ pub extern "C" fn make_void_struct_a(a: c_int) -> VoidStruct {
         a: Box::into_raw(Box::new(a)) as *const c_void,
         b: std::ptr::null(),
     }
+}
+
+#[repr(C)]
+pub struct Bytes {
+    pub bytes: *const c_uchar,
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn bytes_first_byte(bytes: Bytes) -> c_uchar {
+    first_byte(bytes.bytes)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn pointerify(i: c_int) -> *const c_int {
+    Box::leak(Box::new(i))
 }
 
 #[test]

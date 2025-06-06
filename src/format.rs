@@ -18,10 +18,10 @@ use InlineMacro;
 use crate::{
     ast::*,
     is_ident_char,
-    lex::{CodeSpan, Loc, Sp},
     parse::{flip_unsplit_items, flip_unsplit_lines, parse, split_words, trim_spaces},
     Compiler, Handle, Ident, InputSrc, Inputs, PreEvalMode, Primitive, RunMode, SafeSys, Signature,
-    SysBackend, Uiua, UiuaErrorKind, UiuaResult, Value, SUBSCRIPT_DIGITS, SUPERSCRIPT_DIGITS,
+    Subscript, CodeSpan,
+    SysBackend, Uiua, UiuaErrorKind, UiuaResult, Value, SUBSCRIPT_DIGITS, SUPERSCRIPT_DIGITS, Loc, Sp
 };
 
 trait ConfigValue: Sized {
@@ -700,10 +700,6 @@ impl Formatter<'_> {
                 }
             }
             Item::Binding(binding) => {
-                if let Some(tilde_span) = &binding.tilde_span {
-                    self.push(tilde_span, "~");
-                }
-
                 match binding.words.first().map(|w| &w.value) {
                     Some(Word::Ref(r))
                         if binding.words.len() == 1
@@ -849,7 +845,7 @@ impl Formatter<'_> {
                     }
                     if let Some(words) = &data.func {
                         self.output.push(' ');
-                        self.format_words(words, true, depth + 1);
+                        self.format_words(words, true, depth);
                     }
                 }
             }
@@ -1272,6 +1268,10 @@ impl Formatter<'_> {
                 }
                 self.push(&ident.span, &ident.value);
             }
+            Word::ArgSetter(setter) => {
+                self.push(&setter.ident.span, &setter.ident.value);
+                self.push(&setter.colon_span, ":");
+            }
         }
     }
     fn format_primitive(&mut self, prim: Primitive, span: &CodeSpan) {
@@ -1658,6 +1658,7 @@ pub(crate) fn word_is_multiline(word: &Word) -> bool {
         Word::FlipLine => false,
         Word::SemanticComment(_) => true,
         Word::OutputComment { .. } => true,
+        Word::ArgSetter(_) => false,
     }
 }
 

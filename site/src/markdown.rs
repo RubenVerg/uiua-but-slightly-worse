@@ -8,7 +8,7 @@ use leptos::*;
 use uiua::{Inputs, Primitive, Token};
 use uiua_editor::{backend::fetch, lang, replace_lang_name, Editor};
 
-use crate::{examples::LOGO, Hd, NotFound, Prim, ScrollToHash};
+use crate::{examples::LOGO, Hd, Hd3, NotFound, Prim, ScrollToHash};
 
 #[component]
 #[allow(unused_braces)]
@@ -101,7 +101,13 @@ fn node_view<'a>(node: &'a AstNode<'a>) -> View {
                         view!(<Hd id={&id}>{children}</Hd>).into_view()
                     }
                 }
-                3 => view!(<h3 id=id>{children}</h3>).into_view(),
+                3 => {
+                    if id.is_empty() {
+                        view!(<h3 id=id>{children}</h3>).into_view()
+                    } else {
+                        view!(<Hd3 id={&id}>{children}</Hd3>).into_view()
+                    }
+                }
                 4 => view!(<h4 id=id>{children}</h4>).into_view(),
                 5 => view!(<h5 id=id>{children}</h5>).into_view(),
                 _ => view!(<h6 id=id>{children}</h6>).into_view(),
@@ -211,7 +217,7 @@ fn node_view<'a>(node: &'a AstNode<'a>) -> View {
 
 #[cfg(test)]
 fn node_html<'a>(node: &'a AstNode<'a>) -> String {
-    use uiua::{Compiler, SafeSys, Uiua, UiuaErrorKind, Value};
+    use uiua::{Compiler, PrimDoc, SafeSys, Uiua, UiuaErrorKind, Value};
     use uiua_editor::prim_class;
 
     use crate::prim_html;
@@ -298,7 +304,7 @@ fn node_html<'a>(node: &'a AstNode<'a>) -> String {
                         <code><span class={symbol_class:?}>{symbol}</span>{name}</code>
                     </a>"#,
                     prim.name(),
-                    prim.doc().short_text()
+                    PrimDoc::from(prim).short_text()
                 )
             } else {
                 format!(
@@ -359,7 +365,7 @@ fn node_html<'a>(node: &'a AstNode<'a>) -> String {
                         }
                     }
                     Err(e)
-                        if matches!(e.kind, UiuaErrorKind::Parse(..))
+                        if matches!(*e.kind, UiuaErrorKind::Parse(..))
                             || e.to_string().contains("git modules")
                             || e.to_string().contains("was empty") =>
                     {

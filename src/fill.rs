@@ -1,4 +1,4 @@
-use crate::{ast::SubSide, Array, Boxed, Complex, Lambda, Uiua, Value};
+use crate::{Array, Boxed, Complex, Lambda, SubSide, Uiua, Value};
 
 pub struct Fill<'a> {
     env: &'a Uiua,

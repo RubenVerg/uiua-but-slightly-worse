@@ -13,7 +13,7 @@ use serde::*;
 
 use crate::{
     compile::{LocalName, Module},
-    is_ident_char, CodeSpan, FunctionId, InputSrc, IntoInputSrc, Node, SigNode, Signature, Span,
+    is_ident_char, BindingCounts, CodeSpan, FunctionId, Inputs, Node, SigNode, Signature, Span,
     Uiua, UiuaResult, Value,
 };
 
@@ -26,8 +26,6 @@ pub struct Assembly {
     pub(crate) functions: EcoVec<Node>,
     /// A list of global bindings
     pub bindings: EcoVec<BindingInfo>,
-    /// A list of data definitions
-    pub defs: EcoVec<DefInfo>,
     pub(crate) spans: EcoVec<Span>,
     /// Inputs used to build the assembly
     pub inputs: Inputs,
@@ -96,13 +94,6 @@ impl<'de> Deserialize<'de> for Function {
     }
 }
 
-/// Information for a data definition
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DefInfo {
-    /// The name of the definition
-    pub name: Option<EcoString>,
-}
-
 impl Assembly {
     /// Get the [`SigNode`] for a function
     pub fn sig_node(&self, f: &Function) -> SigNode {
@@ -162,22 +153,12 @@ impl Assembly {
         let span = self.spans[span].clone();
         self.add_binding_at(local, BindingKind::Const(value), span.code(), meta);
     }
-    pub(crate) fn bind_def(&mut self, info: DefInfo) -> usize {
-        let index = self.defs.len();
-        self.defs.push(info);
-        index
-    }
-    #[track_caller]
-    pub(crate) fn def(&self, index: usize) -> &DefInfo {
-        &self.defs[index]
-    }
     /// Parse a `.uasm` file into an assembly
     pub fn from_uasm(src: &str) -> Result<Self, String> {
         let rest = src;
         let (root_src, rest) = rest.split_once("BINDINGS").ok_or("No bindings")?;
         let (bindings_src, rest) = rest.trim().split_once("FUNCTIONS").ok_or("No functions")?;
-        let (functions_src, rest) = rest.trim().split_once("DATA DEFS").ok_or("No spans")?;
-        let (defs_src, rest) = rest.trim().split_once("SPANS").ok_or("No spans")?;
+        let (functions_src, rest) = rest.trim().split_once("SPANS").ok_or("No spans")?;
         let (spans_src, rest) = rest.trim().split_once("FILES").ok_or("No files")?;
         let (files_src, rest) = rest
             .trim()
@@ -221,12 +202,6 @@ impl Assembly {
             functions.push(func);
         }
 
-        let mut defs = EcoVec::new();
-        for line in defs_src.lines().filter(|line| !line.trim().is_empty()) {
-            let def: DefInfo = serde_json::from_str(line).unwrap();
-            defs.push(def);
-        }
-
         let mut spans = EcoVec::new();
         spans.push(Span::Builtin);
         for line in spans_src.lines().filter(|line| !line.trim().is_empty()) {
@@ -260,7 +235,6 @@ impl Assembly {
             root,
             bindings,
             functions,
-            defs,
             spans,
             inputs: Inputs {
                 files,
@@ -299,12 +273,6 @@ impl Assembly {
         uasm.push_str("\nFUNCTIONS\n");
         for func in &self.functions {
             uasm.push_str(&serde_json::to_string(&func).unwrap());
-            uasm.push('\n');
-        }
-
-        uasm.push_str("\nDATA DEFS\n");
-        for def in &self.defs {
-            uasm.push_str(&serde_json::to_string(&def).unwrap());
             uasm.push('\n');
         }
 
@@ -370,7 +338,6 @@ impl Default for Assembly {
         Self {
             root: Node::default(),
             functions: EcoVec::new(),
-            defs: EcoVec::new(),
             spans: eco_vec![Span::Builtin],
             bindings: EcoVec::new(),
             dynamic_functions: EcoVec::new(),
@@ -455,30 +422,6 @@ impl BindingKind {
     /// Check if the global is a once-bound constant
     pub fn is_constant(&self) -> bool {
         matches!(self, Self::Const(_))
-    }
-}
-
-/// Character counts for a binding
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-pub struct BindingCounts {
-    /// The number of characters
-    pub char: usize,
-    /// The number of SBCS bytes
-    pub sbcs: usize,
-}
-
-impl fmt::Display for BindingCounts {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} character{}",
-            self.char,
-            if self.char == 1 { "" } else { "s" }
-        )?;
-        if self.sbcs != self.char {
-            write!(f, " ({} SBCS)", self.sbcs)?;
-        }
-        Ok(())
     }
 }
 
@@ -675,123 +618,6 @@ impl From<&str> for DocComment {
             text.push_str(line.trim());
         }
         DocComment { text, sig }
-    }
-}
-
-/// A repository of code strings input to the compiler
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
-pub struct Inputs {
-    /// A map of file paths to their string contents
-    #[serde(skip_serializing_if = "DashMap::is_empty")]
-    pub files: DashMap<PathBuf, EcoString>,
-    /// A list of input strings without paths
-    #[serde(skip_serializing_if = "EcoVec::is_empty")]
-    pub strings: EcoVec<EcoString>,
-    /// A map of spans to macro strings
-    #[serde(skip)]
-    pub macros: DashMap<CodeSpan, EcoString>,
-}
-
-impl Inputs {
-    pub(crate) fn add_src(
-        &mut self,
-        src: impl IntoInputSrc,
-        input: impl Into<EcoString>,
-    ) -> InputSrc {
-        let src = src.into_input_src(self.strings.len());
-        match &src {
-            InputSrc::File(path) => {
-                self.files.insert(path.to_path_buf(), input.into());
-            }
-            InputSrc::Str(i) => {
-                while self.strings.len() <= *i {
-                    self.strings.push(EcoString::default());
-                }
-                self.strings.make_mut()[*i] = input.into();
-            }
-            InputSrc::Macro(span) => {
-                self.macros.insert((**span).clone(), input.into());
-            }
-            InputSrc::Literal(_) => {}
-        }
-        src
-    }
-    /// Get an input string
-    pub fn get(&self, src: &InputSrc) -> EcoString {
-        match src {
-            InputSrc::File(path) => self
-                .files
-                .get(&**path)
-                .unwrap_or_else(|| panic!("File {:?} not found", path))
-                .clone(),
-            InputSrc::Str(index) => self
-                .strings
-                .get(*index)
-                .unwrap_or_else(|| panic!("String {} not found", index))
-                .clone(),
-            InputSrc::Macro(span) => self
-                .macros
-                .get(span)
-                .unwrap_or_else(|| panic!("Macro at {} not found", span))
-                .clone(),
-            InputSrc::Literal(s) => s.clone(),
-        }
-    }
-    /// Get an input string and perform an operation on it
-    #[track_caller]
-    pub fn get_with<T>(&self, src: &InputSrc, f: impl FnOnce(&str) -> T) -> T {
-        match src {
-            InputSrc::File(path) => {
-                if let Some(src) = self.files.get(&**path) {
-                    f(&src)
-                } else {
-                    panic!(
-                        "File {} not found. Available sources are {}",
-                        path.display(),
-                        self.available_srcs()
-                    )
-                }
-            }
-            InputSrc::Str(index) => {
-                if let Some(src) = self.strings.get(*index) {
-                    f(src)
-                } else {
-                    panic!(
-                        "String {} not found. Available sources are {}",
-                        index,
-                        self.available_srcs()
-                    )
-                }
-            }
-            InputSrc::Macro(span) => {
-                if let Some(src) = self.macros.get(span) {
-                    f(src.value())
-                } else {
-                    panic!(
-                        "Macro at {} not found. Available sources are {}",
-                        span,
-                        self.available_srcs()
-                    )
-                }
-            }
-            InputSrc::Literal(s) => f(s),
-        }
-    }
-    fn available_srcs(&self) -> String {
-        (self.files.iter().map(|e| e.key().display().to_string()))
-            .chain(self.strings.iter().map(|i| format!("string {i}")))
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
-    /// Get an input string and perform an operation on it
-    pub fn try_get_with<T>(&self, src: &InputSrc, f: impl FnOnce(&str) -> T) -> Option<T> {
-        match src {
-            InputSrc::File(path) => self.files.get(&**path).map(|src| f(&src)),
-            InputSrc::Str(index) => self.strings.get(*index).map(|src| f(src)),
-            InputSrc::Macro(span) => self.macros.get(span).map(|src| f(&src)),
-            InputSrc::Literal(s) => Some(f(s)),
-        }
     }
 }
 

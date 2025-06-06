@@ -6,11 +6,8 @@ use ecow::EcoString;
 use serde::*;
 
 use crate::{
-    function::Signature,
-    lex::{CodeSpan, Sp},
-    parse::ident_modifier_args,
-    BindingCounts, Complex, Ident, Primitive, SemanticComment, SUBSCRIPT_DIGITS,
-    SUPERSCRIPT_DIGITS,
+    parse::ident_modifier_args, BindingCounts, CodeSpan, Complex, Ident, Primitive,
+    SemanticComment, Signature, Sp, Subscript, Superscript,
 };
 
 /// A top-level item
@@ -88,8 +85,6 @@ impl Item {
 /// A binding
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Binding {
-    /// Span of a ~ for a method
-    pub tilde_span: Option<CodeSpan>,
     /// The name of the binding
     pub name: Sp<Ident>,
     /// The span of the arrow
@@ -360,6 +355,7 @@ pub enum Word {
     Subscripted(Box<Subscripted>),
     Superscripted(Box<Superscripted>),
     InlineMacro(InlineMacro),
+    ArgSetter(ArgSetter),
 }
 
 impl PartialEq for Word {
@@ -478,6 +474,7 @@ impl fmt::Debug for Word {
             Word::InlineMacro(InlineMacro { ident, func, .. }) => {
                 write!(f, "inline_macro({:?}{}))", func.value, ident.value)
             }
+            Word::ArgSetter(setter) => setter.fmt(f),
         }
     }
 }
@@ -784,6 +781,28 @@ impl Modifier {
     }
 }
 
+/// An argument setter
+#[derive(Clone, Serialize)]
+pub struct ArgSetter {
+    /// The name of the field
+    pub ident: Sp<Ident>,
+    /// The span of the colon
+    pub colon_span: CodeSpan,
+}
+
+impl fmt::Debug for ArgSetter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:", self.ident.value)
+    }
+}
+
+impl ArgSetter {
+    /// Get the full span
+    pub fn span(&self) -> CodeSpan {
+        self.ident.span.clone().merge(self.colon_span.clone())
+    }
+}
+
 /// A subscripted word
 #[derive(Clone, Serialize)]
 pub struct Subscripted {
@@ -791,143 +810,6 @@ pub struct Subscripted {
     pub script: Sp<Subscript>,
     /// The modified word
     pub word: Sp<Word>,
-}
-
-/// A subscripts
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(default)]
-pub struct Subscript<N = NumericSubscript> {
-    /// The numeric part of the subscript
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub num: Option<N>,
-    /// The sided part of the subscript
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub side: Option<SidedSubscript>,
-}
-
-impl<N> Default for Subscript<N> {
-    fn default() -> Self {
-        Self {
-            num: None,
-            side: None,
-        }
-    }
-}
-
-/// The numeric part of a subscript
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value", rename_all = "snake_case")]
-pub enum NumericSubscript {
-    /// Only a negative sign
-    NegOnly,
-    /// The number is too large to be represented
-    TooLarge,
-    /// A valid number
-    #[serde(untagged)]
-    N(i32),
-}
-
-/// The sided part of a subscript
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct SidedSubscript {
-    /// The side
-    pub side: SubSide,
-    /// An additional quantifying number
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub n: Option<usize>,
-}
-
-/// A sided subscript
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[allow(missing_docs)]
-pub enum SubSide {
-    Left,
-    Right,
-}
-
-impl Subscript {
-    /// Make a pure numeric subscript
-    pub fn numeric(i: i32) -> Self {
-        Self {
-            num: Some(NumericSubscript::N(i)),
-            side: None,
-        }
-    }
-    /// Check if the subscript is useable
-    pub fn is_useable(&self) -> bool {
-        matches!(self.num, Some(NumericSubscript::N(_))) || self.side.is_some()
-    }
-    /// Get the numeric part of the subscript as an integer, if it exists
-    pub fn n(&self) -> Option<i32> {
-        self.num.and_then(|n| match n {
-            NumericSubscript::N(n) => Some(n),
-            _ => None,
-        })
-    }
-}
-
-impl<N> Subscript<N> {
-    /// Map the numeric part of the subscript
-    pub fn map_num<M>(self, f: impl FnOnce(N) -> M) -> Subscript<M> {
-        Subscript {
-            num: self.num.map(f),
-            side: self.side,
-        }
-    }
-}
-
-impl fmt::Display for SubSide {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SubSide::Left => write!(f, "⌞"),
-            SubSide::Right => write!(f, "⌟"),
-        }
-    }
-}
-
-impl fmt::Display for NumericSubscript {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NumericSubscript::NegOnly => write!(f, "₋"),
-            NumericSubscript::N(n) => {
-                if *n < 0 {
-                    write!(f, "₋")?;
-                }
-                for c in n.abs().to_string().chars() {
-                    write!(f, "{}", SUBSCRIPT_DIGITS[(c as u32 as u8 - b'0') as usize])?;
-                }
-                Ok(())
-            }
-            NumericSubscript::TooLarge => write!(f, "…"),
-        }
-    }
-}
-
-impl fmt::Display for SidedSubscript {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.side.fmt(f)?;
-        if let Some(n) = self.n {
-            for c in n.to_string().chars() {
-                write!(f, "{}", SUBSCRIPT_DIGITS[(c as u32 as u8 - b'0') as usize])?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<N: fmt::Display> fmt::Display for Subscript<N> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.num.is_none() && self.side.is_none() {
-            return write!(f, ",");
-        };
-        if let Some(num) = &self.num {
-            num.fmt(f)?;
-        }
-        if let Some(side) = self.side {
-            side.fmt(f)?;
-        }
-        Ok(())
-    }
 }
 
 impl fmt::Debug for Subscripted {
@@ -944,56 +826,6 @@ pub struct Superscripted {
     pub script: Sp<Superscript>,
     /// The modified word
     pub word: Sp<Word>,
-}
-
-/// A superscript
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(default)]
-pub struct Superscript<N = NumericSuperscript> {
-    /// The superscripted number
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub num: Option<N>,
-}
-
-/// The numeric part of a subscript
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "value", rename_all = "snake_case")]
-pub enum NumericSuperscript {
-    /// The number is too large to be represented
-    TooLarge,
-    /// A valid number
-    #[serde(untagged)]
-    N(i32),
-}
-
-impl<N: fmt::Display> fmt::Display for Superscript<N> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.num.is_none() {
-            return write!(f, "^^");
-        };
-        if let Some(num) = &self.num {
-            num.fmt(f)?;
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for NumericSuperscript {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NumericSuperscript::N(n) => {
-                for c in n.abs().to_string().chars() {
-                    write!(
-                        f,
-                        "{}",
-                        SUPERSCRIPT_DIGITS[(c as u32 as u8 - b'0') as usize]
-                    )?;
-                }
-                Ok(())
-            }
-            NumericSuperscript::TooLarge => write!(f, "…"),
-        }
-    }
 }
 
 impl fmt::Debug for Superscripted {

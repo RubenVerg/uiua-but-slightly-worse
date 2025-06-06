@@ -5,16 +5,24 @@ Uiua is not yet stable.
 ## 0.17.0 - 2025-??-??
 This version is not yet released. If you are reading this on the website, then these changes are live here.
 ### Language
+- **Breaking Change** - Add experimental [data functions](https://www.uiua.org/docs/experimental#data-functions) with optional arguments
+  - Remove existing experimental non-tacit data functions and methods
+  - This breaks uses of [`flip :`](https://uiua.org/docs/flip) immediately after an identifier
 - **Breaking Change** - Numeric subscripted [`join ⊂`](https://uiua.org/docs/join) now joins that many arrays
 - Add array pack syntactic sugar. This lets you write code like `[⊃(+|×)]` as `⊃[+|×]`.
 - Subscripts can now be typed with `,` instead of `__`s
+- Add numeric subscripts for [`keep ▽`](https://uiua.org/docs/keep) to keep along a number of dimensions
 - Stabilize [`self ˙`](https://uiua.org/docs/self)
   - Add experimental sided subscripts for [`self ˙`](https://uiua.org/docs/self)
 - Add experimental sided subscripts for [`backward ˜`](https://uiua.org/docs/backward)
+- Add numeric subscripts for [`occurrences ⧆`](https://uiua.org/docs/occurrences)
+- Deprecate experimental [`progressive indexof ⊘`](https://uiua.org/docs/progressiveindexof) in favor of [`occurrences ⧆`](https://uiua.org/docs/occurrences)
 - Remove previously deprecated `signature` and `stringify` modifiers
 ### Interpreter
 - The fomatter no longer truncates trailing decimal `0`s from number literals
 - Implement filled adjacent [`stencil ⧈`](https://uiua.org/docs/stencil)
+- Remove `kork` and `rkok` aliases
+- Improve "Array would be too large" error messages
 
 ## 0.16.2 - 2025-05-21
 ### Interpreter

@@ -985,7 +985,7 @@ mod enabled {
                 (ty, arg) => {
                     return Err(format!(
                         "Array of {} with shape {} is not a valid \
-                            argument {i} for FFI type {ty}",
+                        argument {i} for FFI type {ty}",
                         arg.type_name_plural(),
                         arg.shape
                     ))
@@ -1004,6 +1004,7 @@ mod enabled {
             value: &Value,
             fields: &[FfiType],
         ) -> Result<Vec<u8>, String> {
+            dbgln!("    struct of {fields:?}, val: {value:?}");
             if value.row_count() != fields.len() {
                 return Err(format!(
                     "Value has {} rows, but the struct has {} fields",
@@ -1082,8 +1083,8 @@ mod enabled {
                                     self.no_arg();
                                     repr[range].copy_from_slice(&(ptr as usize).to_ne_bytes());
                                 }
-                                (inner, value) => {
-                                    let ptr = self.bind(i, inner, &value)?;
+                                (_, value) => {
+                                    let ptr = self.bind(i, field, &value)?;
                                     repr[range].copy_from_slice(&(ptr as usize).to_ne_bytes());
                                 }
                             }

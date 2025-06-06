@@ -10,16 +10,9 @@ use std::{
 };
 
 use crate::{
-    ast::{
-        Func, InlineMacro, Item, Modifier, ModuleKind, Ref, RefComponent, Subscript, Superscript,
-        Word,
-    },
-    ident_modifier_args, is_custom_glyph,
-    lex::{CodeSpan, Sp},
-    parse::parse,
-    Assembly, BindingInfo, BindingKind, BindingMeta, Compiler, Ident, InputSrc, Inputs, LocalName,
-    PreEvalMode, Primitive, Purity, SafeSys, Shape, Signature, SysBackend, UiuaError, Value,
-    CONSTANTS,
+    ast::*, is_custom_glyph, parse, parse::ident_modifier_args, Assembly, BindingInfo, BindingKind,
+    BindingMeta, CodeSpan, Compiler, Ident, InputSrc, Inputs, LocalName, PreEvalMode, Primitive,
+    Purity, SafeSys, Shape, Signature, Sp, Subscript, Superscript, SysBackend, UiuaError, Value, CONSTANTS,
 };
 
 /// Kinds of span in Uiua code, meant to be used in the language server or other IDE tools
@@ -34,7 +27,7 @@ pub enum SpanKind {
     Strand,
     Ident {
         /// The documentation of the identifier
-        docs: Option<BindingDocs>,
+        docs: Option<Box<BindingDocs>>,
         /// Whether the identifier is the original binding name
         original: bool,
     },
@@ -50,6 +43,7 @@ pub enum SpanKind {
     Subscript(Option<Primitive>, Option<Subscript>),
     Superscript(Superscript),
     Obverse(SetInverses),
+    ArgSetter(Option<EcoString>),
 }
 
 /// Documentation information for a binding
@@ -187,6 +181,8 @@ pub struct CodeMeta {
     pub import_srcs: HashMap<CodeSpan, ImportSrc>,
     /// A map of obverse spans to their set inverses
     pub obverses: HashMap<CodeSpan, SetInverses>,
+    /// A map of arg setter spans to their doc comments
+    pub arg_setter_docs: HashMap<CodeSpan, EcoString>,
 }
 
 /// A completion suggestion
@@ -342,9 +338,6 @@ impl Spanner {
                 }
                 Item::Words(line) => spans.extend(self.words_spans(line)),
                 Item::Binding(binding) => {
-                    if let Some(tilde_span) = &binding.tilde_span {
-                        spans.push(tilde_span.clone().sp(SpanKind::Delimiter));
-                    }
                     let binding_docs = self
                         .binding_docs(&binding.name.span)
                         .or_else(|| self.reference_docs(&binding.name.span));
@@ -444,17 +437,17 @@ impl Spanner {
         spans
     }
 
-    fn binding_docs(&self, span: &CodeSpan) -> Option<BindingDocs> {
+    fn binding_docs(&self, span: &CodeSpan) -> Option<Box<BindingDocs>> {
         for binding in &self.asm.bindings {
             if binding.span != *span {
                 continue;
             }
-            return Some(self.make_binding_docs(binding));
+            return Some(self.make_binding_docs(binding).into());
         }
         None
     }
 
-    fn reference_docs(&self, span: &CodeSpan) -> Option<BindingDocs> {
+    fn reference_docs(&self, span: &CodeSpan) -> Option<Box<BindingDocs>> {
         // Look in global references
         if let Some(binding) = self
             .code_meta
@@ -462,7 +455,7 @@ impl Spanner {
             .get(span)
             .and_then(|i| self.asm.bindings.get(*i))
         {
-            return Some(self.make_binding_docs(binding));
+            return Some(self.make_binding_docs(binding).into());
         }
         // Look in constant references
         for name in &self.code_meta.constant_references {
@@ -486,13 +479,16 @@ impl Spanner {
                 comment: Some(constant.doc().into()),
                 ..Default::default()
             };
-            return Some(BindingDocs {
-                src_span: span.clone(),
-                is_public: true,
-                kind: BindingDocsKind::Constant(Some(val)),
-                escape: None,
-                meta,
-            });
+            return Some(
+                BindingDocs {
+                    src_span: span.clone(),
+                    is_public: true,
+                    kind: BindingDocsKind::Constant(Some(val)),
+                    escape: None,
+                    meta,
+                }
+                .into(),
+            );
         }
         None
     }
@@ -786,6 +782,13 @@ impl Spanner {
                     }
                     spans.push(ident.span.clone().sp(mac_delim_kind));
                 }
+                Word::ArgSetter(setter) => {
+                    let comment = (self.code_meta.arg_setter_docs)
+                        .get(&setter.ident.span)
+                        .cloned();
+                    let kind = SpanKind::ArgSetter(comment);
+                    spans.push(word.span.clone().sp(kind));
+                }
             }
         }
         spans.retain(|sp| !sp.span.as_str(self.inputs(), str::is_empty));
@@ -836,6 +839,7 @@ impl Spanner {
     }
 }
 
+use ecow::EcoString;
 #[cfg(feature = "lsp")]
 #[doc(hidden)]
 pub use server::run_language_server;
@@ -858,11 +862,8 @@ mod server {
 
     use crate::{
         format::{format_str, FormatConfig},
-        is_ident_char,
-        lex::{lex, Loc},
-        primitive::{PrimClass, PrimDocFragment},
-        split_name, AsciiToken, Assembly, BindingInfo, NativeSys, PrimDocLine, Span, Token,
-        UiuaErrorKind,
+        is_ident_char, lex, split_name, AsciiToken, Assembly, BindingInfo, Loc, NativeSys,
+        PrimClass, PrimDoc, PrimDocFragment, PrimDocLine, Span, Token, UiuaErrorKind,
     };
 
     pub struct LspDoc {
@@ -1119,9 +1120,7 @@ mod server {
                     continue;
                 };
                 if span_kind.span.contains_line_col(line, col) && span_kind.span.src == path {
-                    let docs = span_kind.span.clone().sp(docs);
-                    let span = docs.span;
-                    let docs = docs.value;
+                    let span = span_kind.span.clone();
                     let mut value = String::new();
                     value.push_str("```uiua\n");
                     span.as_str(&doc.asm.inputs, |s| value.push_str(s));
@@ -1251,6 +1250,18 @@ mod server {
                     };
                 }
             }
+            // Hovering an arg setter
+            for (span, comment) in &doc.code_meta.arg_setter_docs {
+                if span.contains_line_col(line, col) && span.src == path {
+                    return Ok(Some(Hover {
+                        contents: HoverContents::Markup(MarkupContent {
+                            kind: MarkupKind::Markdown,
+                            value: comment.into(),
+                        }),
+                        range: Some(uiua_span_to_lsp(span, &doc.asm.inputs)),
+                    }));
+                }
+            }
 
             Ok(None)
         }
@@ -1366,7 +1377,7 @@ mod server {
                         } else {
                             CompletionItemKind::FUNCTION
                         }),
-                        detail: Some(prim.doc().short_text().to_string()),
+                        detail: Some(PrimDoc::from(prim).short_text().to_string()),
                         documentation: Some(Documentation::MarkupContent(MarkupContent {
                             kind: MarkupKind::Markdown,
                             value: full_prim_doc_markdown(prim),
@@ -1648,6 +1659,7 @@ mod server {
                         stt
                     }
                     SpanKind::Placeholder(_) => SemanticTokenType::PARAMETER,
+                    SpanKind::ArgSetter(_) => MONADIC_FUNCTION_STT,
                     _ => continue,
                 };
                 let mut token_type = UIUA_SEMANTIC_TOKEN_TYPES
@@ -1857,7 +1869,7 @@ mod server {
             // Add experimental
             if !doc.input.contains("# Experimental!") {
                 for error in &doc.errors {
-                    let UiuaErrorKind::Run { message, .. } = &error.kind else {
+                    let UiuaErrorKind::Run { message, .. } = &*error.kind else {
                         continue;
                     };
                     let Span::Code(span) = &message.span else {
@@ -2068,7 +2080,7 @@ mod server {
             let range = |err: &UiuaError, span: &Span| -> Option<Range> {
                 let span = match span {
                     Span::Code(span) => path_locs(span, &path)?,
-                    Span::Builtin => err.trace.iter().find_map(|frame| match &frame.span {
+                    Span::Builtin => err.meta.trace.iter().find_map(|frame| match &frame.span {
                         Span::Code(span) => Some(span),
                         _ => None,
                     })?,
@@ -2078,7 +2090,7 @@ mod server {
 
             // Errors
             for err in &doc.errors {
-                match &err.kind {
+                match &*err.kind {
                     UiuaErrorKind::Run { message, .. } => {
                         let Some(range) = range(err, &message.span) else {
                             continue;
@@ -2452,7 +2464,7 @@ mod server {
             .map(|sig| format!(" {}", sig))
             .unwrap_or_default();
         let mut value = format!("```uiua\n{}{}\n```", prim.format(), sig);
-        let doc = prim.doc();
+        let doc = PrimDoc::from(prim);
         value.push_str("\n\n");
         for frag in &doc.short {
             doc_frag_markdown(&mut value, frag);
