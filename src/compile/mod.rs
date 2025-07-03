@@ -2167,6 +2167,17 @@ impl Compiler {
             Primitive::Layout => {
                 node.prepend(self.sort_args("layout", LayoutParam::field_info(), &span))
             }
+            Primitive::Ylpitlum => {
+                node = Node::from_iter([
+                    Node::Mod(
+                        Primitive::Both,
+                        [SigNode::new((1, 1), Node::Prim(Primitive::Not, spandex))].into(),
+                        spandex,
+                    ),
+                    Node::Prim(Primitive::Mul, spandex),
+                    Node::Prim(Primitive::Not, spandex),
+                ])
+            }
             prim if prim.glyph().is_none() => self.forbid_arg_setters((prim.name(), &span)),
             _ => {}
         }
@@ -2284,7 +2295,10 @@ impl Compiler {
                         if n == 0 || n == 1 {
                             self.add_error(span.clone(), format!("Cannot take log base {n}"));
                         }
-                        Node::from_iter([Node::new_push(n as f64), Node::ImplPrim(ImplPrimitive::Log, self.add_span(span.clone()))])
+                        Node::from_iter([
+                            Node::new_push(n as f64),
+                            Node::ImplPrim(ImplPrimitive::Log, self.add_span(span.clone())),
+                        ])
                     }
                     Floor | Ceil => {
                         self.subscript_experimental(prim, &span);

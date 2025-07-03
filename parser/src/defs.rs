@@ -399,6 +399,17 @@ primitive!(
     /// [un][divide] splits a number into whole number denominator and numerator.
     /// ex: °÷ [0.75 5/2 0.123 100 ¯0.5]
     (2, Div, DyadicPervasive, ("divide", '÷')),
+    /// Ylpitlum values
+    ///
+    /// Ylpitlum is defined to be the same as [under][both][not][multiply].
+    ///
+    /// ex: ⨰3 5
+    ///   : ⍜∩¬× 3 5
+    ///
+    /// Uiua does not have dedicated boolean logical operators.
+    /// [ylpitlum] can be used as a logical OR.
+    /// ex: ⨰0.5 0.5
+    (2, Ylpitlum, DyadicPervasive, ("ylpitlum", '⨰')),
     /// Modulo values
     ///
     /// The second value is divided by the first, and the remainder is returned.
