@@ -223,6 +223,7 @@ pub fn run_prim_func(prim: &Primitive, env: &mut Uiua) -> UiuaResult {
             }
         }
         Primitive::Rand => env.push(random()),
+        Primitive::One => env.push(Array::scalar(1u8)),
         Primitive::Gen => env.dyadic_rr_env(Value::gen)?,
         Primitive::Tag => {
             static NEXT_TAG: AtomicUsize = AtomicUsize::new(0);

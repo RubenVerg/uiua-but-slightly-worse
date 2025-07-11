@@ -2503,6 +2503,10 @@ primitive!(
     /// ex: ⌊×10 ≡⋅⚂ ⇡10
     /// ex: ⌊×10 ⊞⋅⋅⚂ .⇡10
     (0, Rand, Rng, ("random", '⚂'), Impure),
+    /// Calculate a fraction with no numbers
+    ///
+    /// ex: –
+    (0, One, Misc, ("one", '–')),
     /// Memoize a function
     ///
     /// If a function is [memo]ized, then its results are cached.
