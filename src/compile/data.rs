@@ -52,7 +52,7 @@ impl Compiler {
                 self.next_global += 1;
                 let local = LocalName {
                     index: global_index,
-                    public: true,
+                    public: data.public,
                 };
 
                 let (module, ()) = self
@@ -79,6 +79,11 @@ impl Compiler {
                     data.span(),
                     "A module cannot have multiple unnamed data definitions",
                 ));
+            } else if !data.public {
+                self.add_error(
+                    data.init_span.clone(),
+                    "Unnamed data definitions cannot be marked private",
+                );
             }
         }
 

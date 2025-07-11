@@ -10,6 +10,7 @@ use std::{
 use dashmap::DashMap;
 use ecow::{eco_vec, EcoString, EcoVec};
 use serde::*;
+use uiua_parser::SUBSCRIPT_DIGITS;
 
 use crate::{
     compile::{LocalName, Module},
@@ -512,12 +513,24 @@ pub struct DocCommentArg {
     pub ty: Option<EcoString>,
 }
 
+fn is_sig_line(s: &str) -> bool {
+    if s.chars().filter(|&c| "$?".contains(c)).count() != 1 {
+        return false;
+    }
+    let s = s.trim_end();
+    (!s.ends_with(['?', '$']) || s.ends_with(" ?") || s.ends_with(" $"))
+        && (s.chars()).all(|c| {
+            c.is_whitespace()
+                || "?$:".contains(c)
+                || is_ident_char(c)
+                || SUBSCRIPT_DIGITS.contains(&c)
+        })
+}
+
 impl FromStr for DocCommentSig {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.trim_end().ends_with('?') && !s.trim_end().ends_with(" ?")
-            || !(s.chars()).all(|c| c.is_whitespace() || "?$:".contains(c) || is_ident_char(c))
-        {
+        if !is_sig_line(s) {
             return Err(());
         }
         // Split into args and outputs
@@ -586,12 +599,7 @@ impl From<String> for DocComment {
 impl From<&str> for DocComment {
     fn from(text: &str) -> Self {
         let mut sig = None;
-        let sig_line = text.lines().position(|line| {
-            line.chars().filter(|&c| "$?".contains(c)).count() == 1
-                && !line.trim().ends_with('?')
-                && (line.chars())
-                    .all(|c| c.is_whitespace() || "?$:".contains(c) || is_ident_char(c))
-        });
+        let sig_line = text.lines().position(is_sig_line);
         let raw_text = if let Some(i) = sig_line {
             sig = text.lines().nth(i).unwrap().parse().ok();
 

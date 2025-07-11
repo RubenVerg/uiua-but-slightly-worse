@@ -1,6 +1,6 @@
 //! Uiua's abstract syntax tree
 
-use std::{collections::HashMap, fmt, mem::discriminant};
+use std::{collections::BTreeMap, fmt, mem::discriminant};
 
 use ecow::EcoString;
 use serde::*;
@@ -117,11 +117,13 @@ impl Binding {
 pub struct ScopedModule {
     /// The span of the opening delimiter
     pub open_span: CodeSpan,
+    /// Whether the module is public
+    pub public: bool,
     /// The module kind
     pub kind: ModuleKind,
     /// The items
     pub items: Vec<Item>,
-    /// The imports
+    /// The local imports exported from the module
     pub imports: Option<ImportLine>,
     /// The span of the closing delimiter
     pub close_span: Option<CodeSpan>,
@@ -143,6 +145,8 @@ pub struct Import {
     pub name: Option<Sp<Ident>>,
     /// The span of the ~
     pub tilde_span: CodeSpan,
+    /// Whether the import is public
+    pub public: bool,
     /// The import path
     pub path: Sp<String>,
     /// The import lines
@@ -180,6 +184,8 @@ impl Import {
 pub struct DataDef {
     /// The span of the ~ or |
     pub init_span: CodeSpan,
+    /// Whether the def is public
+    pub public: bool,
     /// Whether this is a variant
     pub variant: bool,
     /// The name of the module
@@ -305,7 +311,7 @@ pub struct Comments {
     /// The normal comment lines
     pub lines: Vec<Sp<EcoString>>,
     /// The semantic comments
-    pub semantic: HashMap<SemanticComment, CodeSpan>,
+    pub semantic: BTreeMap<SemanticComment, CodeSpan>,
 }
 
 /// An inline macro
@@ -430,7 +436,7 @@ impl fmt::Debug for Word {
             Word::Number(s, ..) => write!(f, "{s:?}"),
             Word::Char(char) => write!(f, "{char:?}"),
             Word::String(string) => write!(f, "{string:?}"),
-            Word::MultilineString(string) => write!(f, "{string:?}"),
+            Word::MultilineString(string) => write!(f, "$ {string:?}"),
             Word::FormatString(parts) => {
                 write!(f, "$\"")?;
                 for part in parts {

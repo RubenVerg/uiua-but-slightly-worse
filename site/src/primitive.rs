@@ -221,6 +221,7 @@ fn all_uns() -> impl IntoView {
             { inverse_row([Mul], Required, "", "°(×2) 5") }
             { inverse_row([Div], Required, "", "°(÷2) 5") }
             { inverse_row([Pow], Required, "", "°(ⁿ2) 36") }
+            { inverse_row([Exp], No, "Natural logarithm", "°ₑ 10") }
             { inverse_row([Add, Dup], No, "", "°(+.) 10") }
             { inverse_row([Mul, Dup], No, "", "°(×.) 16") }
             { inverse_row([Atan], No, view!(<Prim prim=Sin/>" and cosine"), "°∠ π") }
@@ -310,6 +311,7 @@ fn all_unders() -> impl IntoView {
             { inverse_row([Div], Optional, view!("Optional "<Prim prim=Backward/>), "⍜÷(+1) 2 5") }
             { inverse_row([Modulus], Optional, view!("Optional "<Prim prim=Backward/>), "⍜◿(×10) 4 9") }
             { inverse_row([Pow], Optional, view!("Optional "<Prim prim=Backward/>), "⍜ⁿ(-9) 2 5") }
+            { inverse_row([Exp], No, "", "⍜ₑ(ⁿ2) 7") }
             { inverse_row([Get], Optional, "", "⍜get(×10) @b map \"abc\" 1_2_3") }
             { inverse_row([Floor], No, "", "⍜⌊(×10) 1.5") }
             { inverse_row([Ceil], No, "", "⍜⌈(×10) 1.5") }
@@ -318,7 +320,7 @@ fn all_unders() -> impl IntoView {
             { inverse_row([Sign], No, "", "⍜±(×2) ¯5") }
             { inverse_row([First], No, "", "⍜⊢(×10) [1 2 3 4 5]") }
             { inverse_row([Last], No, "", "⍜⊣(×10) [1 2 3 4 5]") }
-            { inverse_row([Shape], No, view!(<Prim prim=Reshape/>), "⍜△⇌ [1_2_3 4_5_6]") }
+            { inverse_row([Shape], No, "Tiles", "⍜△(×2) [1_2_3 4_5_6]") }
             { inverse_row([Len], No, view!(<Prim prim=Reshape/>), "⍜⧻(+1) [1_2_3 4_5_6]") }
             { inverse_row([Deshape], No, "", "⍜♭⇌ ↯3_3⇡9") }
             { inverse_row([Rise], No, "", "⍜⍏(↻¯1). [1 4 2 3 5]") }

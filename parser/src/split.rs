@@ -45,8 +45,6 @@ static ALIASES: Lazy<HashMap<Primitive, &[&str]>> = Lazy::new(|| {
 /// A numeric syntax component that can be parsed along with primitive names
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Sequence)]
 pub enum NumComponent {
-    /// Euler's number
-    E,
     /// The real complex unit
     R,
     /// The imaginary complex unit
@@ -60,6 +58,8 @@ pub enum PrimComponent {
     Prim(Primitive),
     /// A numeric component
     Num(NumComponent),
+    /// Subscript 2
+    Sub2,
 }
 
 impl From<Primitive> for PrimComponent {
@@ -80,6 +80,7 @@ impl PrimComponent {
         match self {
             PrimComponent::Prim(prim) => prim.name(),
             PrimComponent::Num(num) => num.name(),
+            PrimComponent::Sub2 => "₂",
         }
     }
     /// Try to parse a component from a name prefix
@@ -94,7 +95,6 @@ impl NumComponent {
     pub fn name(&self) -> &'static str {
         use NumComponent::*;
         match self {
-            E => "e",
             R => "r",
             I => "i",
         }
@@ -103,7 +103,6 @@ impl NumComponent {
     pub fn value(&self) -> NumWord {
         use NumComponent::*;
         match self {
-            E => std::f64::consts::E.into(),
             R => Complex::ONE.into(),
             I => Complex::I.into(),
         }
@@ -112,7 +111,6 @@ impl NumComponent {
     pub fn from_format_name(name: &str) -> Option<Self> {
         use NumComponent::*;
         Some(match name {
-            "e" => E,
             "r" => R,
             "i" => I,
             _ => return None,
@@ -131,6 +129,7 @@ impl fmt::Display for PrimComponent {
         match self {
             PrimComponent::Prim(prim) => prim.fmt(f),
             PrimComponent::Num(num) => num.fmt(f),
+            PrimComponent::Sub2 => self.name().fmt(f),
         }
     }
 }
@@ -176,45 +175,49 @@ impl Primitive {
         (exact_match || matching.next().is_none()).then_some(res)
     }
     /// The list of strings where each character maps to an entire primitive
-    pub fn multi_aliases() -> &'static [(&'static str, &'static [(Primitive, &'static str)])] {
+    pub fn multi_aliases() -> &'static [(&'static str, &'static [(PrimComponent, &'static str)])] {
         use Primitive::*;
+        macro_rules! alias {
+            ($(($s:ident, $prim:expr)),* $(,)*) => {
+                (
+                    concat!($(stringify!($s)),*),
+                    &[$((PrimComponent::Prim($prim), stringify!($s))),*]
+                )
+            }
+        }
         &[
-            ("awm", &[(Assert, "a"), (With, "w"), (Match, "m")]),
-            ("dor", &[(Div, "d"), (On, "o"), (Range, "r")]),
-            (
-                "pbbn",
-                &[(Partition, "p"), (Box, "b"), (By, "b"), (Ne, "n")],
+            alias!((a, Assert), (w, With), (m, Match)),
+            alias!((d, Div), (o, On), (r, Range)),
+            alias!((p, Partition), (b, Box), (b, By), (n, Ne)),
+            alias!((p, Partition), (p, Parse), (b, By), (n, Ne)),
+            alias!((p, Partition), (i, Identity), (b, By), (n, Ne)),
+            alias!((k, Keep), (b, By), (n, Ne)),
+            alias!((f, Fork), (t, Take), (d, Drop)),
+            alias!((f, Fork), (d, Drop), (t, Take)),
+            alias!((d, Drop), (n, Neg), (o, On), (d, Drop)),
+            alias!(
+                (a, Anti),
+                (d, Drop),
+                (n, Neg),
+                (o, On),
+                (a, Anti),
+                (d, Drop)
             ),
+            alias!((p, Dip), (e, Pop), (r, Under), (f, Now)),
+            alias!((s, Un), (et, By)),
+            alias!((wr, Sub), (en, By), (ch, Not)),
+            alias!((sel, Select), (first, First)),
             (
-                "ppbn",
-                &[(Partition, "p"), (Parse, "p"), (By, "b"), (Ne, "n")],
-            ),
-            (
-                "pibn",
-                &[(Partition, "p"), (Identity, "i"), (By, "b"), (Ne, "n")],
-            ),
-            ("kbn", &[(Keep, "k"), (By, "b"), (Ne, "n")]),
-            ("ftd", &[(Fork, "f"), (Take, "t"), (Drop, "d")]),
-            ("fdt", &[(Fork, "f"), (Drop, "d"), (Take, "t")]),
-            ("dnod", &[(Drop, "d"), (Neg, "n"), (On, "o"), (Drop, "d")]),
-            (
-                "adnoad",
+                "kork",
                 &[
-                    (Anti, "a"),
-                    (Drop, "d"),
-                    (Neg, "n"),
-                    (On, "o"),
-                    (Anti, "a"),
-                    (Drop, "d"),
+                    (PrimComponent::Prim(Keep), "keep"),
+                    (PrimComponent::Sub2, "k"),
                 ],
             ),
-            ("perf", &[(Dip, "p"), (Pop, "e"), (Under, "r"), (Now, "f")]),
-            ("wrench", &[(Sub, "wr"), (By, "en"), (Not, "ch")]),
-            ("selfirst", &[(Select, "sel"), (First, "first")]),
         ]
     }
     /// Look up a multi-alias from [`Self::multi_aliases`]
-    pub fn get_multi_alias(name: &str) -> Option<&'static [(Primitive, &'static str)]> {
+    pub fn get_multi_alias(name: &str) -> Option<&'static [(PrimComponent, &'static str)]> {
         Self::multi_aliases()
             .iter()
             .find(|(alias, _)| *alias == name)
@@ -307,7 +310,7 @@ pub fn split_name(name: &str) -> Option<Vec<(PrimComponent, &str)>> {
             }
             // Aliases
             if let Some(ps) = Primitive::get_multi_alias(sub_name) {
-                prims.extend(ps.iter().map(|(p, s)| ((*p).into(), *s)));
+                prims.extend(ps.iter().map(|(p, s)| (*p, *s)));
                 start += len;
                 continue 'outer;
             }
@@ -391,7 +394,7 @@ pub fn split_name(name: &str) -> Option<Vec<(PrimComponent, &str)>> {
             }
             // Aliases
             if let Some(ps) = Primitive::get_multi_alias(sub_name) {
-                prims.extend(ps.iter().rev().map(|(p, s)| ((*p).into(), *s)));
+                prims.extend(ps.iter().rev().map(|(p, s)| (*p, *s)));
                 end -= len;
                 continue 'outer;
             }

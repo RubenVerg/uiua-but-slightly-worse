@@ -642,7 +642,11 @@ impl Formatter<'_> {
         match item {
             Item::Module(m) => {
                 self.prev_import_function = None;
-                self.output.push_str("┌─╴");
+                self.output.push_str(if m.value.public {
+                    "┌─╴"
+                } else {
+                    "┌╶╶"
+                });
                 match &m.value.kind {
                     ModuleKind::Named(name) => self.push(&name.span, &name.value),
                     ModuleKind::Test => self.output.push_str("test"),
@@ -662,7 +666,11 @@ impl Formatter<'_> {
                     self.output.pop();
                 }
                 self.newline(depth);
-                self.output.push_str("└─╴");
+                self.output.push_str(if m.value.public {
+                    "└─╴"
+                } else {
+                    "└╶╶"
+                });
             }
             Item::Words(words) => {
                 self.prev_import_function = None;
@@ -675,7 +683,15 @@ impl Formatter<'_> {
                     }
                     for (j, word) in line.iter().enumerate() {
                         self.format_word(word, depth);
-                        if word_is_multiline(&word.value) && j < words.len() - 1 {
+                        if word_is_multiline(&word.value)
+                            && j < words.len() - 1
+                            && !line.first().is_some_and(|first| {
+                                matches!(
+                                    first.value,
+                                    Word::MultilineString(_) | Word::MultilineFormatString(_)
+                                )
+                            })
+                        {
                             for (end, empty) in [(')', "()"), (']', "[]"), ('}', "{}")] {
                                 if self.output.ends_with(end) && !self.output.ends_with(empty) {
                                     self.output.pop();
@@ -765,7 +781,16 @@ impl Formatter<'_> {
                             '\n'
                         });
                     }
-                    self.push(&data.init_span, if data.variant { "|" } else { "~" });
+                    self.push(
+                        &data.init_span,
+                        if data.variant {
+                            "|"
+                        } else if data.public {
+                            "~"
+                        } else {
+                            "≁"
+                        },
+                    );
                     if let Some(name) = &data.name {
                         self.push(&name.span, &name.value);
                     }
@@ -856,7 +881,8 @@ impl Formatter<'_> {
                     self.output.push(' ');
                     self.prev_import_function = Some(name.value.clone());
                 }
-                self.output.push_str("~ ");
+                self.output
+                    .push_str(if import.public { "~ " } else { "≁ " });
                 self.push(&import.path.span, &format!("{:?}", import.path.value));
 
                 let mut import = import.clone();
@@ -970,7 +996,15 @@ impl Formatter<'_> {
     }
     fn format_word(&mut self, word: &Sp<Word>, depth: usize) {
         match &word.value {
-            Word::Number(_, s) => self.push(&word.span, s),
+            Word::Number(_, s) => {
+                if s.starts_with('¯') && self.output.ends_with(',')
+                    || !s.starts_with('¯') && self.output.ends_with(|c: char| c.is_ascii_digit())
+                    || s.starts_with(|c: char| c.is_ascii_digit()) && self.output.ends_with('¯')
+                {
+                    self.output.push(' ');
+                }
+                self.push(&word.span, s)
+            }
             Word::Label(label) => self.push(&word.span, &format!("${label}")),
             Word::Char(_) | Word::String(_) | Word::FormatString(_) => self
                 .output
@@ -1289,6 +1323,12 @@ impl Formatter<'_> {
         }
         match prim {
             Primitive::Utf8 => self.push(span, "utf₈"),
+            Primitive::Neg => {
+                if self.output.ends_with(',') {
+                    self.output.push(' ');
+                }
+                self.push(span, &as_str);
+            }
             Primitive::Eq => {
                 if self.output.ends_with('!') {
                     self.output.push(' ');

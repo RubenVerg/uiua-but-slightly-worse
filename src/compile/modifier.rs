@@ -58,13 +58,12 @@ impl Compiler {
                 }
                 let mut nodes = nodes.into_iter().rev();
                 let dip_span = self.add_span(modifier.span.clone());
-                let mut res = Node::Mod(Primitive::Dip, eco_vec![nodes.next().unwrap()], dip_span);
+                let mut res = nodes.next().unwrap().node;
                 for node in nodes {
-                    res = Node::Mod(
-                        Primitive::Dip,
-                        eco_vec![Node::from_iter([res, node.node]).sig_node().unwrap()],
-                        dip_span,
-                    );
+                    res = Node::from_iter([
+                        Node::Mod(Primitive::Dip, eco_vec![res.sig_node().unwrap()], dip_span),
+                        node.node,
+                    ]);
                 }
                 Ok(res)
             }
@@ -125,7 +124,11 @@ impl Compiler {
             }
             Modifier::Primitive(Primitive::On) => {
                 let mut words = Vec::new();
-                for branch in pack.lexical_order().cloned() {
+                let mut branches = pack.lexical_order().cloned();
+                if let Some(func) = branches.next() {
+                    words.push(func.map(Word::Func));
+                }
+                for branch in branches {
                     let mut word = Word::Modified(Box::new(Modified {
                         modifier: modifier.clone(),
                         operands: vec![branch.clone().map(Word::Func)],
@@ -581,7 +584,6 @@ impl Compiler {
                 match (f.sig.args(), g.sig.args()) {
                     (0, _) => Node::from_iter([g.node, f.node]),
                     (1, 0) => Node::from_iter([Node::Mod(Dip, eco_vec![g], span), f.node]),
-                    (1, _) => Node::from_iter([Node::Mod(On, eco_vec![g], span), f.node]),
                     _ => Node::Mod(Fork, eco_vec![f, g], span),
                 }
             }
@@ -1363,7 +1365,7 @@ impl Compiler {
                 fn table_fork(sn: SigNode, table_span: usize, asm: &Assembly) -> Node {
                     match sn.node {
                         Node::Mod(Fork, args, fork_span)
-                            if (args.iter()).all(|arg| arg.node.is_pure(Purity::Pure, asm))
+                            if (args.iter()).all(|arg| arg.node.is_pure(asm))
                                 && args.windows(2).all(|w| w[0].sig.args() == w[1].sig.args()) =>
                         {
                             let args: EcoVec<SigNode> = args
@@ -1542,6 +1544,8 @@ impl Compiler {
         for (local, comp) in path_locals.into_iter().zip(&r.path) {
             (self.code_meta.global_references).insert(comp.module.span.clone(), local.index);
         }
+        let binfo = &mut self.asm.bindings.make_mut()[local.index];
+        binfo.used = true;
         // Handle recursion depth
         self.comptime_depth += 1;
         if self.comptime_depth > MAX_COMPTIME_DEPTH {
@@ -1586,7 +1590,7 @@ impl Compiler {
     ) -> UiuaResult<Node> {
         let span = self.add_span(ref_span.clone());
         Ok(match self.scope.kind {
-            ScopeKind::Temp(Some(mac_local)) if mac_local.macro_index == local.index => {
+            ScopeKind::Macro(Some(mac_local)) if mac_local.macro_index == local.index => {
                 // Recursive
                 if let Some(sig) = mac.sig {
                     Node::CallMacro {
@@ -1974,7 +1978,7 @@ impl Compiler {
         let orig_names = names.clone();
         // Create temp scope
         let temp_scope = Scope {
-            kind: ScopeKind::Temp(macro_local),
+            kind: ScopeKind::Macro(macro_local),
             names,
             experimental: self.scope.experimental,
             experimental_error: self.scope.experimental_error,

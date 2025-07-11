@@ -1,4 +1,6 @@
-# Index macros
+################
+# Index macros #
+################
 F! ← ^0 5
 G! ← F!^0
 ⍤⤙≍ ¯5 G!¯
@@ -28,7 +30,28 @@ F! ← ⨬(
 F! ← -^0 i
 ⍤⤙≍ i F!0
 
-# Code macros
+# Scoping shenanigans
+┌─╴M
+  X  ← "Inner"
+  A! ← ^0
+  B! ← (^0)
+└─╴
+X ← "Outer"
+⍤⤙≍ "Outer" M~A!X
+⍤⤙≍ "Outer" M~B!X
+
+┌─╴Mod
+  X     ← "Inner"
+  Mac₁! ← ^0
+  Mac₂! ← Mac₁!^0
+└─╴
+X ← "Outer"
+⍤⤙≍ "Outer" Mod~Mac₁!X
+⍤⤙≍ "Outer" Mod~Mac₂!X
+
+###############
+# Code macros #
+###############
 F! ←^
 G! ←^ ⇌
 H‼ ←^ ⊂⊢.

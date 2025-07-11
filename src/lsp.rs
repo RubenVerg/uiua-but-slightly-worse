@@ -12,8 +12,7 @@ use std::{
 use crate::{
     ast::*, is_custom_glyph, parse, parse::ident_modifier_args, Assembly, BindingInfo, BindingKind,
     BindingMeta, CodeSpan, Compiler, Ident, InputSrc, Inputs, LocalName, PreEvalMode, Primitive,
-    Purity, SafeSys, Shape, Signature, Sp, Subscript, Superscript, SysBackend, UiuaError, Value,
-    CONSTANTS,
+    SafeSys, Shape, Signature, Sp, Subscript, SysBackend, UiuaError, Value, CONSTANTS,
 };
 
 /// Kinds of span in Uiua code, meant to be used in the language server or other IDE tools
@@ -379,6 +378,14 @@ impl Spanner {
                                         spans.push(prev.end_to(&curr).sp(SpanKind::Whitespace))
                                     }
                                 }
+                                if let Some(comments) = &field.comments {
+                                    for line in &comments.lines {
+                                        spans.push(line.span.clone().sp(SpanKind::Comment));
+                                    }
+                                    for span in comments.semantic.values() {
+                                        spans.push(span.clone().sp(SpanKind::Comment));
+                                    }
+                                }
                                 spans.push(field.name.span.clone().sp(SpanKind::Ident {
                                     docs: self.binding_docs(&field.name.span),
                                     original: true,
@@ -535,7 +542,7 @@ impl Spanner {
                 underable: self.asm[f]
                     .under_inverse(Signature::new(1, 1), false, &self.asm)
                     .is_ok(),
-                pure: self.asm[f].is_pure(Purity::Pure, &self.asm),
+                pure: self.asm[f].is_pure(&self.asm),
             },
             BindingKind::IndexMacro(args) => BindingDocsKind::Modifier(*args),
             BindingKind::CodeMacro(_) => {
@@ -844,6 +851,7 @@ use ecow::EcoString;
 #[cfg(feature = "lsp")]
 #[doc(hidden)]
 pub use server::run_language_server;
+use uiua_parser::Superscript;
 
 #[cfg(feature = "lsp")]
 mod server {
@@ -931,6 +939,7 @@ mod server {
 
     const UIUA_NUMBER_STT: SemanticTokenType = SemanticTokenType::new("uiua_number");
     const UIUA_STRING_STT: SemanticTokenType = SemanticTokenType::new("uiua_string");
+    const UIUA_CONSTANT_STT: SemanticTokenType = SemanticTokenType::new("uiua_constant");
     const STACK_FUNCTION_STT: SemanticTokenType = SemanticTokenType::new("stack_function");
     const NOADIC_FUNCTION_STT: SemanticTokenType = SemanticTokenType::new("noadic_function");
     const MONADIC_FUNCTION_STT: SemanticTokenType = SemanticTokenType::new("monadic_function");
@@ -942,11 +951,12 @@ mod server {
     const TRIADIC_MODIFIER_STT: SemanticTokenType = SemanticTokenType::new("triadic_modifier");
     const MODULE_STT: SemanticTokenType = SemanticTokenType::new("uiua_module");
 
-    const UIUA_SEMANTIC_TOKEN_TYPES: [SemanticTokenType; 14] = [
+    const UIUA_SEMANTIC_TOKEN_TYPES: [SemanticTokenType; 15] = [
         SemanticTokenType::COMMENT,
         SemanticTokenType::PARAMETER,
         UIUA_NUMBER_STT,
         UIUA_STRING_STT,
+        UIUA_CONSTANT_STT,
         STACK_FUNCTION_STT,
         NOADIC_FUNCTION_STT,
         MONADIC_FUNCTION_STT,
@@ -1635,7 +1645,7 @@ mod server {
                     SpanKind::Ident {
                         docs: Some(docs), ..
                     } => match docs.kind {
-                        BindingDocsKind::Constant(_) => continue,
+                        BindingDocsKind::Constant(_) => UIUA_CONSTANT_STT,
                         BindingDocsKind::Function { sig, .. } => match sig.args() {
                             0 => NOADIC_FUNCTION_STT,
                             1 => MONADIC_FUNCTION_STT,

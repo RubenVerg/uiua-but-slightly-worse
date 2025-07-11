@@ -1242,7 +1242,7 @@ inverse!(PrimPat, input, _, Prim(prim, span), {
         Recip => Prim(Recip, span),
         Not => Prim(Not, span),
         Sin => ImplPrim(Asin, span),
-        Ln => ImplPrim(Exp, span),
+        Exp => ImplPrim(Ln, span),
         Atan => ImplPrim(UnAtan, span),
         Complex => ImplPrim(UnComplex, span),
         Add => ImplPrim(UnAdd, span),
@@ -1287,7 +1287,7 @@ inverse!(ImplPrimPat, input, _, ImplPrim(prim, span), {
         Asin => Prim(Sin, span),
         Cos => ImplPrim(Acos, span),
         Acos => ImplPrim(Cos, span),
-        Exp => Prim(Ln, span),
+        Ln => Prim(Exp, span),
         SortDown => ImplPrim(UnSort, span),
         TransposeN(n) => ImplPrim(TransposeN(-n), span),
         UnWhere => Prim(Where, span),
@@ -1337,7 +1337,7 @@ inverse!(Val, input, asm, {
     for end in (1..=input.len()).rev() {
         let chunk = &input[..end];
         if let Some(sig) = nodes_clean_sig(chunk) {
-            if sig == (0, 1) && chunk.iter().all(|n| n.is_pure(Purity::Pure, asm)) {
+            if sig == (0, 1) && chunk.iter().all(|n| n.is_pure(asm)) {
                 return Ok((&input[end..], Node::from(chunk)));
             }
         }

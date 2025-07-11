@@ -9,20 +9,37 @@ This version is not yet released. If you are reading this on the website, then t
   - Remove existing experimental non-tacit data functions and methods
   - This breaks uses of [`flip :`](https://uiua.org/docs/flip) immediately after an identifier
 - **Breaking Change** - Numeric subscripted [`join ⊂`](https://uiua.org/docs/join) now joins that many arrays
+- **Breaking Change** - Remove combining `e` number literals
+  - It was confusing when combined with `e` scientific number notation
+- **Breaking Change** - [`under ⍜`](https://uiua.org/docs/under)[`shape △`](https://uiua.org/docs/shape) now tiles the original array to match the new shape instead of [`reshape ↯`](https://uiua.org/docs/reshape)ing
+- **Breaking Change** - [`dip ⊙`](https://uiua.org/docs/dip) and [`on ⟜`](https://uiua.org/docs/on) function packs no longer apply their modifier to the leftmost function
+  - This change makes most usecases of these function packs cleaner, as `A⊙(B|C)` changes to `⊙(A|B|C)` and likewise for [`on ⟜`](https://uiua.org/docs/on)
+- Allow for private [modules](https://uiua.org/tutorial/modules#private-scoped-modules), [imports](https://uiua.org/tutorial/modules#private-imports), and [data definitions](https://uiua.org/tutorial/datadefs#visibility)
 - Add array pack syntactic sugar. This lets you write code like `[⊃(+|×)]` as `⊃[+|×]`.
 - Subscripts can now be typed with `,` instead of `__`s
 - Add numeric subscripts for [`keep ▽`](https://uiua.org/docs/keep) to keep along a number of dimensions
+- Add [`under ⍜`](https://uiua.org/docs/under) capability to [`fork ⊃`](https://uiua.org/docs/fork)s of monadic functions
+  - This allows using [`un °`](https://uiua.org/docs/un)[`by ⊸`](https://uiua.org/docs/by)[`fork ⊃`](https://uiua.org/docs/fork) to set multiple properties at once
 - Stabilize [`self ˙`](https://uiua.org/docs/self)
   - Add experimental sided subscripts for [`self ˙`](https://uiua.org/docs/self)
 - Add experimental sided subscripts for [`backward ˜`](https://uiua.org/docs/backward)
 - Add numeric subscripts for [`occurrences ⧆`](https://uiua.org/docs/occurrences)
 - Deprecate experimental [`progressive indexof ⊘`](https://uiua.org/docs/progressiveindexof) in favor of [`occurrences ⧆`](https://uiua.org/docs/occurrences)
+- Add the [`exponential ₑ`](https://uiua.org/docs/exponential) function, which computes the exponential function
+- Deprecate [`logarithm ₙ`](https://uiua.org/docs/logarithm) in favor of [`exponential ₑ`](https://uiua.org/docs/exponential)
+- Remove experimental `ln` in favor of [`exponential ₑ`](https://uiua.org/docs/exponential)
+- Remove the `ⁿ%:1` ("root" pattern) optimization, it undered incorrectly, and should be replaced with [`anti ⌝`](https://uiua.org/docs/anti)[`pow ⁿ`](https://uiua.org/docs/power)
+- Add [`&seek`](https://uiua.org/docs/&seek) function for working with large files
 - Remove previously deprecated `signature` and `stringify` modifiers
 ### Interpreter
 - The fomatter no longer truncates trailing decimal `0`s from number literals
 - Implement filled adjacent [`stencil ⧈`](https://uiua.org/docs/stencil)
-- Remove `kork` and `rkok` aliases
+- Remove `rkok` alias and change `kork` to format to `▽₂`
 - Improve "Array would be too large" error messages
+- Change short form of the `--experimental` flag for `uiua eval` to use `-x` instead of `-e`
+  - This is consistent with the corresponding flag for `uiua repl`
+### Pad
+- Add `primitives.json` to the pre-included files in the pad
 
 ## 0.16.2 - 2025-05-21
 ### Interpreter
@@ -869,7 +886,7 @@ You can find the release announcement [here](https://uiua.org/blog/uiua-0.10.0).
   - The behavior of [`content ◇`](https://uiua.org/docs/content) is less implicit and is not prone to some of the potential unexpected behavior of [`unpack ⊐`](https://uiua.org/docs/unpack)
 - Add the [`unique ◰`](https://uiua.org/docs/unique) function, which creates a mask of the first occurrence of each unique value in an array
   - Change [`deduplicate ◴`](https://uiua.org/docs/deduplicate)'s glyph to reflect its relationship with [`unique ◰`](https://uiua.org/docs/unique). Code using `⊖` will continue to work and will be formatted as `◴`.
-- [`table ⊞`](https://uiua.org/docs/table) now works on rows of arrays but keeps it's optimizations for lists
+- [`table ⊞`](https://uiua.org/docs/table) now works on rows of arrays but keeps its optimizations for lists
   - You never wanted element-wise combinations of multi-dimensional arrays anyway
   - Deprecate [`cross ⊠`](https://uiua.org/docs/cross), as it is now redundant
   - This is technically a breaking change, but it is unlikely to break much code

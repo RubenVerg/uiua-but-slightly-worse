@@ -41,7 +41,8 @@ thread_local! {
     pub static FILES: RefCell<HashMap<PathBuf, Vec<u8>>> = RefCell::new(
         [
             ("example.ua", EXAMPLE_UA),
-            ("example.txt", EXAMPLE_TXT)
+            ("example.txt", EXAMPLE_TXT),
+            ("primitives.json", include_str!("../../../site/primitives.json"))
         ]
         .map(|(path, content)| (PathBuf::from(path), content.as_bytes().to_vec()))
         .into(),
@@ -348,6 +349,30 @@ impl SysBackend for WebBackend {
         let data = stream.contents[stream.pos..end].to_vec();
         stream.pos = (end + delim.len()).min(stream.contents.len());
         Ok(data)
+    }
+    fn seek(&self, handle: Handle, offset: uiua::StreamSeek) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        let stream = streams.get_mut(&handle).ok_or("Invalid stream handle")?;
+        let size = stream.contents.len();
+        stream.pos = match offset {
+            uiua::StreamSeek::Start(off) => {
+                if off >= size {
+                    Err(format!(
+                        "Tried to seek to {}, but the file stream is only {} bytes",
+                        off, size
+                    ))?
+                }
+                off
+            }
+
+            uiua::StreamSeek::End(off) => size.checked_sub(off).ok_or_else(|| {
+                format!(
+                    "Tried to seek {} bytes from file stream end, but the file stream is only {} bytes",
+                    off, size
+                )
+            })?,
+        };
+        Ok(())
     }
     fn delete(&self, path: &str) -> Result<(), String> {
         FILES.with(|files| files.borrow_mut().remove(Path::new(path)));

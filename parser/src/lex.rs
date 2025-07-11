@@ -618,10 +618,12 @@ pub enum Token {
     LeftArrow,
     LeftStrokeArrow,
     LeftArrowTilde,
+    TildeStroke,
     DownArrow,
     OpenAngle,
     CloseAngle,
     OpenModule,
+    OpenPrivateModule,
     CloseModule,
     Newline,
     Spaces,
@@ -739,6 +741,7 @@ impl fmt::Display for Token {
             Token::LeftArrow => write!(f, "←"),
             Token::LeftStrokeArrow => write!(f, "↚"),
             Token::LeftArrowTilde => write!(f, "←~"),
+            Token::TildeStroke => write!(f, "≁"),
             Token::DownArrow => write!(f, "↓"),
             Token::OpenAngle => write!(f, "⟨"),
             Token::CloseAngle => write!(f, "⟩"),
@@ -747,6 +750,7 @@ impl fmt::Display for Token {
             Token::Subscr(sub) => sub.fmt(f),
             Token::Superscr(sup) => sup.fmt(f),
             Token::OpenModule => write!(f, "┌─╴"),
+            Token::OpenPrivateModule => write!(f, "┌╶╶"),
             Token::CloseModule => write!(f, "└─╴"),
             Token::Placeholder(i) => write!(f, "^{i}"),
         }
@@ -778,6 +782,7 @@ pub enum AsciiToken {
     GreaterEqual,
     Backtick,
     Tilde,
+    DoubleTilde,
     Quote,
 }
 
@@ -805,6 +810,7 @@ impl fmt::Display for AsciiToken {
             AsciiToken::GreaterEqual => write!(f, ">="),
             AsciiToken::Backtick => write!(f, "`"),
             AsciiToken::Tilde => write!(f, "~"),
+            AsciiToken::DoubleTilde => write!(f, "~~"),
             AsciiToken::Quote => write!(f, "'"),
         }
     }
@@ -834,10 +840,10 @@ impl From<SemanticComment> for Token {
 pub enum SemanticComment {
     /// Allow experimental features
     Experimental,
-    /// Prevent the containing function from being inlined
-    NoInline,
     /// Prevent stack traces from going deeper
     TrackCaller,
+    /// Prevent the containing function from being inlined
+    NoInline,
     /// Mark that a function should be bound externally
     External,
     /// Mark a function as deprecated
@@ -1069,7 +1075,9 @@ impl<'a> Lexer<'a> {
                 ":" => self.end(Colon, start),
                 ";" if self.next_char_exact(";") => self.end(DoubleSemicolon, start),
                 ";" => self.end(Semicolon, start),
+                "~" if self.next_char_exact("~") => self.end(DoubleTilde, start),
                 "~" => self.end(Tilde, start),
+                "≁" => self.end(TildeStroke, start),
                 "'" => self.end(Quote, start),
                 "`" => {
                     if self.number("-") {
@@ -1103,10 +1111,23 @@ impl<'a> Lexer<'a> {
                 "←" if self.next_char_exact("~") => self.end(LeftArrowTilde, start),
                 "←" => self.end(LeftArrow, start),
                 "↚" => self.end(LeftStrokeArrow, start),
-                "┌" if self.next_char_exact("─") && self.next_char_exact("╴") => {
-                    self.end(OpenModule, start)
+                "┌" if self.next_char_exact("─") && self.next_char_exact("╴")
+                    || self.next_char_exact("-") && self.next_char_exact("-") =>
+                {
+                    let tok = if self.next_char_exact("~") {
+                        OpenPrivateModule
+                    } else {
+                        OpenModule
+                    };
+                    self.end(tok, start)
                 }
-                "└" if self.next_char_exact("─") && self.next_char_exact("╴") => {
+                "┌" if self.next_char_exact("╶") && self.next_char_exact("╶") => {
+                    self.end(OpenPrivateModule, start)
+                }
+                "└" if self.next_char_exact("─") && self.next_char_exact("╴")
+                    || self.next_char_exact("╶") && self.next_char_exact("╶") =>
+                {
+                    self.next_char_exact("~");
                     self.end(CloseModule, start)
                 }
                 // Stack
@@ -1322,6 +1343,7 @@ impl<'a> Lexer<'a> {
                             let tok = match prim {
                                 PrimComponent::Prim(prim) => Glyph(prim),
                                 PrimComponent::Num(num) => Ident(num.name().into()),
+                                PrimComponent::Sub2 => Subscr(2.into()),
                             };
                             self.tokens.push(self.make_span(start, end).sp(tok));
                             start = end;
@@ -1723,7 +1745,7 @@ fn parse_format_fragments(s: &str) -> Vec<String> {
 
 /// Whether a character can be among the first characters of a Uiua identifier
 pub fn is_ident_char(c: char) -> bool {
-    c.is_alphabetic() && !"ⁿℂ".contains(c)
+    c.is_alphabetic() && !"ⁿₙₑℂ".contains(c)
 }
 
 /// Whether a string is a custom glyph

@@ -100,6 +100,7 @@ fn under_inverse_impl(
 static UNDER_PATTERNS: &[&dyn UnderPattern] = &[
     &CustomPat,
     &OnPat,
+    &ForkPat,
     &BothPat,
     &Trivial,
     &SwitchPat,
@@ -170,7 +171,7 @@ static UNDER_PATTERNS: &[&dyn UnderPattern] = &[
     &(Fix, (Fix), (UndoFix)),
     &(UndoFix, (UndoFix), (Fix)),
     &Stash(1, (Shape, Len), (Flip, 1, Sub, Rerank)),
-    &Stash(1, Shape, (Flip, Reshape)),
+    &Stash(1, Shape, UndoShape),
     &(
         Len,
         (CopyUnd(1), Shape, CopyUnd(1), First),
@@ -449,6 +450,48 @@ under!(OnPat, input, g_sig, inverse, asm, On, span, [f], {
         f_after.node
     };
     after.push(after_inner);
+    Ok((&[], before, after))
+});
+
+under!(ForkPat, input, g_sig, inverse, asm, Fork, span, [f1, f2], {
+    if f1.sig.args() != 1 || f2.sig.args() != 1 {
+        return Err(InversionError::Signature(SigCheckError {
+            message: "Cannot invert fork of non monadic functions".into(),
+            kind: crate::check::SigCheckErrorKind::NoInverse,
+        }));
+    }
+
+    let (rest_before, rest_after) = under_inverse(input, g_sig, inverse, asm)?;
+
+    let mut before = CopyToUnder(1, span);
+    before.push(Mod(Fork, eco_vec![f1.clone(), f2.clone()], span));
+    before.push(rest_before);
+
+    let n_dip = |mut node, n| -> Result<SigNode, SigCheckError> {
+        for _ in 0..n {
+            node = Mod(Dip, eco_vec![node], span).sig_node()?;
+        }
+        Ok(node)
+    };
+
+    let f2_after = n_dip(
+        Mod(By, eco_vec![f2.clone()], span)
+            .un_inverse(asm)?
+            .sig_node()?,
+        f1.sig.outputs(),
+    )?;
+
+    let mut after = rest_after;
+    after.push(
+        n_dip(
+            PopUnder(1, span).sig_node()?,
+            f1.sig.outputs() + f2.sig.outputs(),
+        )?
+        .node,
+    );
+    after.push(f2_after.node);
+    after.push(Mod(By, eco_vec![f1.clone()], span).un_inverse(asm)?);
+
     Ok((&[], before, after))
 });
 
@@ -1055,7 +1098,7 @@ under!(ConstPat, input, _, _, asm, {
 /// Copy some values to the under stack at the beginning of the "do" step
 /// and pop them at the beginning of the "undo" step
 ///
-/// Allows a leading value if staching at least 2 values
+/// Allows a leading value if stashing at least 2 values
 #[derive(Debug)]
 struct Stash<A, B>(usize, A, B);
 impl<A, B> UnderPattern for Stash<A, B>

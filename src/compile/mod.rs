@@ -23,6 +23,7 @@ use std::{
 use ecow::{eco_vec, EcoString, EcoVec};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+use uiua_parser::NumericSuperscript;
 
 use crate::{
     algorithm::ga::Spec,
@@ -32,14 +33,14 @@ use crate::{
     function::DynamicFunction,
     lsp::{CodeMeta, Completion, ImportSrc, SetInverses, SigDecl},
     media::{LayoutParam, VoxelsParam},
-    parse::ident_modifier_args,
     parse::{
-        flip_unsplit_items, flip_unsplit_lines, max_placeholder, parse, split_items, split_words,
+        flip_unsplit_items, flip_unsplit_lines, ident_modifier_args, max_placeholder, parse,
+        split_items, split_words,
     },
     Array, ArrayValue, Assembly, BindingKind, BindingMeta, Boxed, CodeSpan, CustomInverse,
-    Diagnostic, DiagnosticKind, DocComment, DocCommentSig, Function, FunctionId, GitTarget, Ident,
-    ImplPrimitive, InputSrc, IntoInputSrc, IntoSysBackend, Node, NumericSubscript,
-    NumericSuperscript, PrimClass, Primitive, Purity, RunMode, SemanticComment, SigNode, Signature,
+    Diagnostic, DiagnosticKind, DocComment, DocCommentSig, ExactDoubleIterator, Function,
+    FunctionId, GitTarget, Ident, ImplPrimitive, InputSrc, IntoInputSrc, IntoSysBackend, Node,
+    NumericSubscript, PrimClass, Primitive, Purity, RunMode, SemanticComment, SigNode, Signature,
     Sp, Span, SubSide, Subscript, SysBackend, Uiua, UiuaError, UiuaErrorKind, UiuaResult, Value,
     CONSTANTS, EXAMPLE_UA, SUBSCRIPT_DIGITS, VERSION,
 };
@@ -192,7 +193,7 @@ impl AsMut<Assembly> for Compiler {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct CurrentBinding {
     name: Ident,
     signature: Option<Signature>,
@@ -231,7 +232,7 @@ enum ScopeKind {
     /// A scope that includes all bindings in a module
     AllInModule,
     /// A temporary scope, probably for a macro
-    Temp(Option<MacroLocal>),
+    Macro(Option<MacroLocal>),
     /// A binding scope
     Binding,
     /// A function scope between some delimiters
@@ -389,8 +390,11 @@ impl Compiler {
         let src = self.asm.inputs.add_src(src, input);
         self.load_impl(input, src)
     }
-    fn scopes(&self) -> impl Iterator<Item = &Scope> {
-        once(&self.scope).chain(self.higher_scopes.iter().rev())
+    fn scopes(&self) -> impl ExactDoubleIterator<Item = &Scope> {
+        once(&self.scope)
+            .chain(self.higher_scopes.iter().rev())
+            .collect::<Vec<_>>()
+            .into_iter()
     }
     #[allow(dead_code)]
     fn scopes_mut(&mut self) -> impl Iterator<Item = &mut Scope> {
@@ -785,20 +789,6 @@ impl Compiler {
         span: usize,
         meta: BindingMeta,
     ) -> UiuaResult {
-        if let Some(sig) = meta.comment.as_ref().and_then(|c| c.sig.as_ref()) {
-            if !sig.matches_sig(function.sig) {
-                self.emit_diagnostic(
-                    format!(
-                        "{name}'s comment describes {}, \
-                        but its code has signature {}",
-                        sig.sig_string(),
-                        function.sig,
-                    ),
-                    DiagnosticKind::Warning,
-                    self.get_span(span).clone().code().unwrap(),
-                );
-            }
-        }
         self.scope.names.insert(name.clone(), local);
         let span = if span == 0 {
             Some(CodeSpan::literal(name))
@@ -818,16 +808,6 @@ impl Compiler {
         meta: BindingMeta,
     ) {
         let span = self.get_span(span).clone().code().unwrap();
-        if let Some(sig) = meta.comment.as_ref().and_then(|c| c.sig.as_ref()) {
-            self.emit_diagnostic(
-                format!(
-                    "{name}'s comment describes {}, but it is a constant",
-                    sig.sig_string(),
-                ),
-                DiagnosticKind::Warning,
-                span.clone(),
-            );
-        }
         self.asm
             .add_binding_at(local, BindingKind::Const(value), Some(span), meta);
         self.scope.names.insert(name, local);
@@ -1562,12 +1542,17 @@ impl Compiler {
             }
         })
     }
-    fn force_sig(&mut self, mut node: Node, new_sig: Signature, span: &CodeSpan) -> Node {
+    fn force_sig(
+        &mut self,
+        mut node: Node,
+        new_sig: Signature,
+        span: &CodeSpan,
+    ) -> UiuaResult<Node> {
         let Ok(sig) = node.sig() else {
-            return node;
+            return Ok(node);
         };
         if new_sig == sig {
-            return node;
+            return Ok(node);
         }
         let delta = sig.outputs() as isize - sig.args() as isize;
         let new_delta = new_sig.outputs() as isize - new_sig.args() as isize;
@@ -1588,6 +1573,15 @@ impl Compiler {
                 );
             }
             Ordering::Less => {
+                if new_sig.outputs() > 10 {
+                    return Err(self.error(
+                        span.clone(),
+                        format!(
+                            "Signature mismatch: declared {new_sig} but inferred {sig}. \
+                            Signatures with more than 10 outputs cannot be forced."
+                        ),
+                    ));
+                }
                 let diff = (new_delta - delta).unsigned_abs();
                 let spandex = self.add_span(span.clone());
                 let mut extra = Node::from_iter(
@@ -1608,6 +1602,15 @@ impl Compiler {
                 );
             }
             Ordering::Greater => {
+                if new_sig.args() > 10 {
+                    return Err(self.error(
+                        span.clone(),
+                        format!(
+                            "Signature mismatch: declared {new_sig} but inferred {sig}. \
+                            Signatures with more than 10 arguments cannot be forced."
+                        ),
+                    ));
+                }
                 let diff = (delta - new_delta).unsigned_abs();
                 let spandex = self.add_span(span.clone());
                 let mut pops =
@@ -1626,7 +1629,7 @@ impl Compiler {
                 );
             }
         }
-        node
+        Ok(node)
     }
     #[must_use]
     fn semantic_comment(&mut self, comment: SemanticComment, span: CodeSpan, inner: Node) -> Node {
@@ -1657,7 +1660,14 @@ impl Compiler {
                     })
                 })
             }) {
-                Ok(Some((path_locals, local)))
+                if local.public {
+                    Ok(Some((path_locals, local)))
+                } else {
+                    Err(self.error(
+                        r.name.span.clone(),
+                        format!("`{}` is private", r.name.value),
+                    ))
+                }
             } else {
                 Err(self.error(
                     r.name.span.clone(),
@@ -1675,22 +1685,29 @@ impl Compiler {
             ))
         }
     }
-    fn find_name(&self, name: &str, skip_local: bool) -> Option<LocalName> {
-        self.find_name_impl(name, skip_local, false)
+    fn find_name(&self, name: &str, skip_temp: bool) -> Option<LocalName> {
+        self.find_name_impl(name, skip_temp, false)
     }
     fn find_name_impl(
         &self,
         name: &str,
-        skip_local: bool,
+        skip_temp: bool,
         stop_at_binding: bool,
     ) -> Option<LocalName> {
-        if !skip_local {
-            if let Some(local) = self.scope.names.get(name).copied() {
-                return Some(local);
-            }
-        }
+        // println!("name: {name:?}, skip_temp: {skip_temp}");
+        // for scope in self.scopes() {
+        //     println!("  {:?} {:?}", scope.kind, scope.names);
+        // }
+        let skip = if skip_temp {
+            self.scopes()
+                .rposition(|sc| matches!(sc.kind, ScopeKind::Macro(_)))
+                .map(|s| s + 1)
+                .unwrap_or(0)
+        } else {
+            0
+        };
         let mut hit_file = false;
-        for scope in self.higher_scopes.iter().rev() {
+        for scope in self.scopes().skip(skip) {
             if matches!(scope.kind, ScopeKind::File(_))
                 || stop_at_binding && matches!(scope.kind, ScopeKind::Binding)
             {
@@ -1705,7 +1722,7 @@ impl Compiler {
         }
         // Attempt to look up the identifier as a non-macro
         let as_non_macro =
-            self.find_name_impl(name.strip_suffix('!')?, skip_local, stop_at_binding)?;
+            self.find_name_impl(name.strip_suffix('!')?, skip_temp, stop_at_binding)?;
         if let BindingKind::Module(_) | BindingKind::Import(_) =
             self.asm.bindings[as_non_macro.index].kind
         {
@@ -1877,17 +1894,11 @@ impl Compiler {
             curr.recurses += 1;
             let global_index = curr.global_index;
             (self.code_meta.global_references).insert(span.clone(), global_index);
-            let sig = curr.signature.unwrap_or_else(|| {
-                self.add_error(
-                    span.clone(),
-                    format!(
-                        "Recursive function `{ident}` must have a \
-                        signature declared after the ←."
-                    ),
-                );
-                Signature::new(1, 1)
-            });
-            Node::CallGlobal(global_index, sig)
+            if let Some(sig) = curr.signature.filter(|sig| sig.outputs() <= 10) {
+                Node::CallGlobal(global_index, sig)
+            } else {
+                Node::empty()
+            }
         } else if let Some(local) = self.find_name(&ident, skip_local) {
             // Name exists in scope
             self.validate_local(&ident, local, &span);
@@ -2024,7 +2035,7 @@ impl Compiler {
         let sig = match root.sig() {
             Ok(mut sig) => {
                 if let Some(declared_sig) = &func.signature {
-                    root = self.force_sig(root, declared_sig.value, &declared_sig.span);
+                    root = self.force_sig(root, declared_sig.value, &declared_sig.span)?;
                     sig = declared_sig.value;
                 }
                 Some(sig)
@@ -2069,8 +2080,7 @@ impl Compiler {
                             [Node::Format(..), Node::Prim(Primitive::Dup, _)] => return true,
                             _ => (),
                         }
-                        sub.is_pure(Purity::Pure, &self.asm)
-                            || !sub.sig().is_ok_and(|sig| sig == (0, 2))
+                        sub.is_pure(&self.asm) || !sub.sig().is_ok_and(|sig| sig == (0, 2))
                     })
                 });
             br.push((SigNode::new(sig, node), span));
@@ -2291,15 +2301,11 @@ impl Compiler {
                         }
                         Node::from_iter([Node::new_push(1.0 / n as f64), self.primitive(Pow, span)])
                     }
-                    Ln => {
-                        if n == 0 || n == 1 {
-                            self.add_error(span.clone(), format!("Cannot take log base {n}"));
-                        }
-                        Node::from_iter([
-                            Node::new_push(n as f64),
-                            Node::ImplPrim(ImplPrimitive::Log, self.add_span(span.clone())),
-                        ])
-                    }
+                    Exp => Node::from_iter([
+                        Node::new_push(n as f64),
+                        self.primitive(Flip, span.clone()),
+                        self.primitive(Pow, span),
+                    ]),
                     Floor | Ceil => {
                         self.subscript_experimental(prim, &span);
                         let mul = 10f64.powi(n);
@@ -2808,7 +2814,7 @@ impl Compiler {
                         }
                         SetterStashKind::Scope(ScopeKind::Binding) => "binding",
                         SetterStashKind::Scope(ScopeKind::File(_)) => "file",
-                        SetterStashKind::Scope(ScopeKind::Temp(_)) => "macro",
+                        SetterStashKind::Scope(ScopeKind::Macro(_)) => "macro",
                         SetterStashKind::Scope(ScopeKind::Module(_)) => "module",
                         SetterStashKind::Scope(ScopeKind::Test) => "test scope",
                     };

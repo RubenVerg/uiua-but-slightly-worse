@@ -1,7 +1,7 @@
 //! The Uiua parser
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     error::Error,
     f64::consts::{PI, TAU},
     fmt,
@@ -141,6 +141,7 @@ pub fn parse(
                 let mut array_depth = 0i32;
                 let mut underscore = false;
                 while let Some(tok) = toks.next() {
+                    first = first.or(Some(&tok.span));
                     let start = heuristic;
                     heuristic += match &tok.value {
                         Spaces | Comment => 0,
@@ -164,10 +165,7 @@ pub fn parse(
                             1
                         }
                         Number | Str(_) | Char(_) if array_depth > 0 => 0,
-                        _ => {
-                            first = first.or(Some(&tok.span));
-                            1
-                        }
+                        _ => 1,
                     };
                     if heuristic > start && underscore {
                         underscore = false;
@@ -368,7 +366,7 @@ impl Parser<'_> {
     }
     fn module(&mut self, in_module: bool) -> Option<Sp<ScopedModule>> {
         let backup = self.index;
-        let open_span = self.module_open()?;
+        let (public, open_span) = self.module_open()?.into();
         self.spaces();
         // Name
         let name = self.ident();
@@ -413,6 +411,7 @@ impl Parser<'_> {
         };
         let module = ScopedModule {
             open_span,
+            public,
             kind,
             items,
             imports,
@@ -480,26 +479,6 @@ impl Parser<'_> {
             public,
             array_macro,
         })
-    }
-    fn import_init(&mut self) -> Option<(Option<Sp<Ident>>, CodeSpan, Sp<String>)> {
-        let start = self.index;
-        // Name
-        let name = self.ident();
-        self.spaces();
-        // Tilde
-        let Some(tilde_span) = self.exact(Tilde.into()) else {
-            self.index = start;
-            return None;
-        };
-        self.spaces();
-        // Path
-        let Some(path) = self.next_token_map(Token::as_string) else {
-            self.index = start;
-            return None;
-        };
-        let path = path.map(Into::into);
-        self.spaces();
-        Some((name, tilde_span, path))
     }
     fn binding(&mut self) -> Option<Binding> {
         let BindingInit {
@@ -625,14 +604,21 @@ impl Parser<'_> {
     fn data_def(&mut self, allow_variants: bool) -> Option<DataDef> {
         let reset = self.index;
         let mut variant = false;
-        let init_span = self.exact(Tilde.into()).or_else(|| {
-            if allow_variants {
-                variant = true;
-                self.exact(Bar.into())
-            } else {
-                None
-            }
-        })?;
+        let (init_span, public) = (self.exact(Tilde.into()).map(|span| (span, true)))
+            .or_else(|| {
+                self.exact(DoubleTilde.into())
+                    .or_else(|| self.exact(TildeStroke))
+                    .map(|span| (span, false))
+            })
+            .or_else(|| {
+                if allow_variants {
+                    variant = true;
+                    let span = self.exact(Bar.into())?;
+                    Some((span, true))
+                } else {
+                    None
+                }
+            })?;
         self.spaces();
         let name = self.ident();
         self.spaces();
@@ -741,6 +727,7 @@ impl Parser<'_> {
         let func = self.words();
         Some(DataDef {
             init_span,
+            public,
             variant,
             name,
             fields,
@@ -777,11 +764,34 @@ impl Parser<'_> {
         }
     }
     fn import(&mut self) -> Option<Import> {
-        let (name, tilde_span, path) = self.import_init()?;
+        let reset = self.index;
+        // Name
+        let name = self.ident();
+        self.spaces();
+        // Tilde
+        let Some((tilde_span, public)) =
+            (self.exact(Tilde.into()).map(|s| (s, true))).or_else(|| {
+                self.exact(TildeStroke)
+                    .or_else(|| self.exact(DoubleTilde.into()))
+                    .map(|s| (s, false))
+            })
+        else {
+            self.index = reset;
+            return None;
+        };
+        self.spaces();
+        // Path
+        let Some(path) = self.next_token_map(Token::as_string) else {
+            self.index = reset;
+            return None;
+        };
+        let path = path.map(Into::into);
+        self.spaces();
         // Items
         let mut lines: Vec<Option<ImportLine>> = Vec::new();
         let mut line: Option<ImportLine> = None;
         let mut last_tilde_index = self.index;
+        let mut line_reset = self.index;
         loop {
             if let Some((line, ident)) = line
                 .as_mut()
@@ -808,11 +818,17 @@ impl Parser<'_> {
                         items: Vec::new(),
                     })
                 }
-                Simple(Tilde) => self
-                    .errors
-                    .push(span.sp(ParseError::Unexpected(Simple(Tilde)))),
-                Newline => lines.push(line.take()),
+                Simple(Tilde) => (self.errors).push(span.sp(ParseError::Unexpected(Simple(Tilde)))),
+                Newline => {
+                    lines.push(line.take());
+                    line_reset = self.index;
+                }
                 Spaces => {}
+                Simple(OpenBracket | OpenCurly) => {
+                    self.index = line_reset;
+                    line = None;
+                    break;
+                }
                 _ => break,
             }
             self.index += 1;
@@ -834,6 +850,7 @@ impl Parser<'_> {
         Some(Import {
             name,
             tilde_span,
+            public,
             path,
             lines,
         })
@@ -887,8 +904,7 @@ impl Parser<'_> {
             name = next;
         }
         let span = start_span.merge(name.span.clone());
-        let colon_span = path
-            .is_empty()
+        let colon_span = (path.is_empty() && !name.value.contains(['&', '!']))
             .then(|| self.exact(AsciiToken::Colon.into()))
             .flatten();
         Some(if let Some(colon_span) = colon_span {
@@ -1306,7 +1322,7 @@ impl Parser<'_> {
                     .filter(|n| !n.value.1.contains(['.', '∞']))
                     .map(Into::into)
                 {
-                    let mut n = numer.map_with(denom, |n, d| n / d, |n, d| n / d);
+                    let n = numer.map_with(denom, |n, d| n / d, |n, d| n / d);
                     s.push('/');
                     s.push_str(&ds);
                     if s.contains('¯') {
@@ -1319,10 +1335,6 @@ impl Parser<'_> {
                         }
                     }
                     span.merge_with(dspan);
-                    if s == "22/7" {
-                        // Hehe
-                        n = PI.into();
-                    }
                     return Some(span.sp((n, s)));
                 } else {
                     self.index = reset;
@@ -1330,7 +1342,7 @@ impl Parser<'_> {
             }
         }
         // Let 1-letter string be identifiers
-        if ["r", "i", "e"].contains(&s.as_str()) {
+        if ["r", "i"].contains(&s.as_str()) {
             self.index = reset;
             return None;
         }
@@ -1375,7 +1387,7 @@ impl Parser<'_> {
             span.merge_with(span2);
         }
         // Final suffix
-        if !s.contains(['η', 'π', 'τ', 'e']) {
+        if !s.contains(['η', 'π', 'τ']) {
             if let Some(((n2, s2), span2)) = self.num_frag(true).map(Into::into) {
                 n = n.map_with(n2, |n, n2| n * n2, Complex::safe_mul);
                 s.push_str(&s2);
@@ -1396,9 +1408,16 @@ impl Parser<'_> {
         } else if let Some((r, span)) = self.real().map(Into::into) {
             let s = &self.input[span.byte_range()];
             let s = match &r {
-                Ok(_) if s.contains(['e', 'E']) => s.into(),
+                Ok(_) if s.contains(['e', 'E']) => {
+                    if s.contains('`') {
+                        s.replace('`', "¯")
+                    } else {
+                        s.into()
+                    }
+                }
                 Ok(_) if s.contains('.') && s.ends_with('0') => s.into(),
                 Ok(n) => n.to_string().replace('-', "¯"),
+                Err(_) if s.contains('`') => s.replace('`', "¯"),
                 Err(_) => s.into(),
             };
             (r, s, Some(span))
@@ -1712,15 +1731,16 @@ impl Parser<'_> {
     fn spaces(&mut self) -> Option<Sp<Word>> {
         self.exact(Spaces).map(|span| span.sp(Word::Spaces))
     }
-    fn module_open(&mut self) -> Option<CodeSpan> {
-        self.exact(OpenModule)
+    fn module_open(&mut self) -> Option<Sp<bool>> {
+        (self.exact(OpenModule).map(|span| span.sp(true)))
+            .or_else(|| self.exact(OpenPrivateModule).map(|span| span.sp(false)))
             .or_else(|| self.module_delim_hyphens())
     }
     fn module_close(&mut self) -> Option<CodeSpan> {
         self.exact(CloseModule)
-            .or_else(|| self.module_delim_hyphens())
+            .or_else(|| self.module_delim_hyphens().map(|sp| sp.span))
     }
-    fn module_delim_hyphens(&mut self) -> Option<CodeSpan> {
+    fn module_delim_hyphens(&mut self) -> Option<Sp<bool>> {
         let reset = self.index;
         let start = self.exact(Primitive::Sub.into())?;
         if self.exact(Primitive::Sub.into()).is_none() {
@@ -1731,7 +1751,9 @@ impl Parser<'_> {
             self.index = reset;
             return None;
         };
-        Some(start.merge(end))
+        let public = self.exact(Tilde.into()).is_none();
+        let span = start.merge(end);
+        Some(span.sp(public))
     }
     fn expect_close(&mut self, token: Token) -> Sp<bool> {
         if let Some(span) = self.exact(token.clone()) {
@@ -1744,7 +1766,7 @@ impl Parser<'_> {
     }
     fn comments(&mut self) -> Option<Comments> {
         let mut lines = Vec::new();
-        let mut semantic = HashMap::new();
+        let mut semantic = BTreeMap::new();
         loop {
             self.ignore_whitespace();
             if let Some(span) = self.exact(Comment) {

@@ -160,6 +160,24 @@ impl fmt::Display for HandleKind {
     }
 }
 
+/// Reference point and offset to seek a position in a stream with
+/// This is used instead of `std::io::SeekFrom` because the latter is more general than what Uiua uses, so using a more specific enum reduces checks elsewhere in the code.
+pub enum StreamSeek {
+    /// Seek a position forward from the start of the stream
+    Start(usize),
+    /// Seek a position backward from the end of the stream
+    End(usize),
+}
+
+impl From<StreamSeek> for std::io::SeekFrom {
+    fn from(value: StreamSeek) -> Self {
+        match value {
+            StreamSeek::Start(off) => std::io::SeekFrom::Start(off as u64),
+            StreamSeek::End(off) => std::io::SeekFrom::End(-(off as i64)),
+        }
+    }
+}
+
 #[cfg(feature = "image")]
 pub(crate) type WebcamImage = image::RgbImage;
 #[cfg(not(feature = "image"))]
@@ -297,6 +315,10 @@ pub trait SysBackend: Any + Send + Sync + 'static {
     /// Write bytes to a stream
     fn write(&self, handle: Handle, contents: &[u8]) -> Result<(), String> {
         Err("Writing to streams is not supported in this environment".into())
+    }
+    /// Go to an absolute file position
+    fn seek(&self, handle: Handle, offset: StreamSeek) -> Result<(), String> {
+        Err("Seeking streams is not supported in this environment".into())
     }
     /// Create a file
     fn create_file(&self, path: &Path) -> Result<Handle, String> {
@@ -859,6 +881,15 @@ pub(crate) fn run_sys_op(op: &SysOp, env: &mut Uiua) -> UiuaResult {
                 Handle::STDIN => return Err(env.error("Cannot write to stdin")),
                 _ => (env.rt.backend.write(handle, &bytes)).map_err(|e| env.error(e))?,
             }
+        }
+        SysOp::Seek => {
+            let pos = env.pop(1)?.as_int(env, None)?;
+            let pos = match pos {
+                ..0 => StreamSeek::End((-pos) as usize),
+                0.. => StreamSeek::Start(pos as usize),
+            };
+            let handle = env.pop(2)?.as_handle(env, None)?;
+            env.rt.backend.seek(handle, pos).map_err(|e| env.error(e))?;
         }
         SysOp::FReadAllStr => {
             let path = env.pop(1)?.as_string(env, "Path must be a string")?;

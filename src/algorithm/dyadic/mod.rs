@@ -18,6 +18,7 @@ use ecow::{eco_vec, EcoVec};
 use rand::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
+use smallvec::SmallVec;
 
 use crate::{
     algorithm::pervade::{self, bin_pervade_recursive, InfalliblePervasiveFn},
@@ -329,6 +330,126 @@ fn derive_shape(
 }
 
 impl Value {
+    /// Apply the given shape to the array by either tiling or filling
+    pub fn undo_shape(&mut self, shape: &Value, env: &Uiua) -> UiuaResult {
+        self.match_fill(env);
+
+        let axes_input = shape.as_ints_or_infs(env, "Shape should be integers or infinity")?;
+        let mut reversed_axes = SmallVec::<[_; 32]>::new();
+        let rank_shift = self.shape.len() as isize - axes_input.len() as isize;
+        let shape: Shape = axes_input
+            .into_iter()
+            .enumerate()
+            .map(|(i, ax)| match ax {
+                Ok(val) => {
+                    if val.is_negative() {
+                        reversed_axes.push(i);
+                    }
+                    val.unsigned_abs()
+                }
+                Err(rev) => {
+                    if rev {
+                        reversed_axes.push(i);
+                    }
+                    self.shape
+                        .get(i.wrapping_add_signed(rank_shift))
+                        .copied()
+                        .unwrap_or(1)
+                }
+            })
+            .collect();
+        val_as_arr!(self, |a| a.undo_shape(shape, reversed_axes, env))
+    }
+}
+
+impl<T: ArrayValue> Array<T> {
+    /// Apply the given shape to the array by either tiling or filling
+    pub fn undo_shape(
+        &mut self,
+        shape: Shape,
+        reversed_axes: impl IntoIterator<Item = usize> + Clone,
+        env: &Uiua,
+    ) -> UiuaResult {
+        if self.shape == shape {
+            return Ok(());
+        }
+
+        if shape.elements() == 0 {
+            *self = Array::new(shape, []);
+            return Ok(());
+        }
+
+        let rank_surplus = self.rank() as isize - shape.len() as isize;
+        match rank_surplus.cmp(&0) {
+            // Rank is too high, take the first row repeatedly
+            Ordering::Greater => {
+                let mut new = self.clone();
+                for _ in 0..rank_surplus {
+                    new = new.first(env)?;
+                }
+                *self = new;
+            }
+            // Rank is too low, add 1-length axes
+            Ordering::Less => {
+                let mut new_shape = vec![1; rank_surplus.unsigned_abs()];
+                new_shape.extend_from_slice(&self.shape);
+                self.shape = new_shape.into();
+            }
+            _ => {}
+        }
+
+        // If converting to rank 0, the rank-matching process
+        // is sufficient to produce the correct result
+        if shape.is_empty() {
+            return Ok(());
+        }
+
+        for ax in reversed_axes.clone() {
+            self.reverse_depth(ax);
+        }
+
+        if let Err(e) = env.array_fill::<T>() {
+            // The case where the target shape is empty is handled at the start of the function
+            if self.shape.elements() == 0 {
+                return Err(env.error(format!(
+                    "Cannot set non-empty shape of empty array without a fill value{e}"
+                )));
+            }
+            let ishape: EcoVec<_> = shape.iter().map(|v| *v as isize).collect();
+            let range_data: EcoVec<_> = match super::monadic::range(&ishape, 0, env)? {
+                Ok(a) => a.iter().map(|v| *v as isize).collect(),
+                Err(a) => a.iter().map(|v| *v as isize).collect(),
+            };
+
+            let data: EcoVec<_> = range_data
+                .chunks(shape.len())
+                .map(|idx| {
+                    let idx = idx
+                        .iter()
+                        .zip(&self.shape)
+                        .map(|(a, b)| a.rem_euclid(*b as isize));
+                    let i = self
+                        .shape
+                        .i_dims_to_flat(idx)
+                        .expect("Tiling index was out of bounds");
+                    self.data[i].clone()
+                })
+                .collect();
+            *self = Array::new(shape, data);
+        } else {
+            let dims: EcoVec<_> = shape.iter().map(|v| Ok(*v as isize)).collect();
+            *self = self.clone().take(&dims, env)?;
+        }
+
+        for ax in reversed_axes {
+            self.reverse_depth(ax);
+        }
+
+        Ok(())
+    }
+}
+
+impl Value {
     /// `rerank` this value with another
     pub fn rerank(&mut self, rank: &Self, env: &Uiua) -> UiuaResult {
         self.meta.take_map_keys();
@@ -432,7 +553,8 @@ impl Value {
     pub(crate) fn unkeep(self, env: &Uiua) -> UiuaResult<(Self, Self)> {
         val_as_arr!(self, |a| a.unkeep(env).map(|(a, b)| (a, b.into())))
     }
-    pub(crate) fn anti_keep(self, kept: Self, env: &Uiua) -> UiuaResult<Self> {
+    pub(crate) fn anti_keep(self, mut kept: Self, env: &Uiua) -> UiuaResult<Self> {
+        kept.match_fill(env);
         let counts = self.as_nums(env, "Keep amount must be a list of natural numbers")?;
         Ok(if self.rank() == 0 {
             if counts[0] == 0.0 {
@@ -695,6 +817,9 @@ impl<T: ArrayValue> Array<T> {
             return Err(env.error("Anti keep amount must be a list of booleans"));
         }
         let trues = counts.iter().filter(|&&n| n == 1.0).count();
+        if trues == 0 {
+            return Err(env.error("Cannot anti keep with all 0 counts"));
+        }
         let falses = counts.iter().filter(|&&n| n == 0.0).count();
         let target_len = self.row_count().max(
             (self.row_count() as f64 * (trues + falses) as f64 / trues as f64).floor() as usize,
@@ -990,7 +1115,6 @@ impl<T: ArrayValue> Array<T> {
         forward: bool,
         env: &Uiua,
     ) -> UiuaResult {
-        // println!("rotate_depth: {depth}");
         if !forward && env.scalar_unfill::<T>().is_ok() {
             return Err(env.error("Cannot invert filled rotation"));
         }
@@ -1016,6 +1140,12 @@ impl<T: ArrayValue> Array<T> {
             for &bd in by.shape.iter().rev().skip(1) {
                 self.reshape_scalar(Ok(bd as isize), false, env)?;
             }
+        }
+        if self.rank() < depth {
+            for &bd in by.shape.iter().skip(depth.saturating_sub(1)) {
+                self.reshape_scalar(Ok(bd as isize), false, env)?;
+            }
+            self.transpose();
         }
 
         // Handles depth and fixed axes
@@ -1440,8 +1570,8 @@ impl<T: ArrayValue> Array<T> {
         }
         if undices
             .iter()
-            .zip(undices.iter().skip(1))
-            .any(|(a, b)| a == b)
+            .enumerate()
+            .any(|(i, a)| undices[..i].contains(a))
         {
             return match env.scalar_fill() {
                 Ok(fill) => self.filled_orient(undices, fill.value, env),
@@ -1651,7 +1781,7 @@ fn digits_needed_for_base(n: f64, base: f64) -> usize {
         0
     } else {
         let mut log = n.abs().log(base);
-        if (log.fract() - 1.0).abs() <= 2.0 * f64::EPSILON {
+        if (log.fract() - 1.0).abs() <= 4.0 * f64::EPSILON {
             log = log.ceil();
         }
         log.floor() as usize + 1
@@ -1670,9 +1800,7 @@ impl<T: RealArrayValue> Array<T> {
             return Err(env.error("Base cannot be NaN"));
         }
         Ok(if base >= 0.0 {
-            let max_row_len = self
-                .data
-                .iter()
+            let max_row_len = (self.data.iter())
                 .map(|&n| digits_needed_for_base(n.to_f64(), base))
                 .max()
                 .unwrap_or(0);
@@ -2139,10 +2267,18 @@ impl Value {
             Value::Num(mut arr) => {
                 let mut denom_data = eco_vec![1.0; arr.element_count()];
                 for (f, d) in (arr.data.as_mut_slice().iter_mut()).zip(denom_data.make_mut()) {
-                    let gcd = pervade::or::num_num(*f, 1.0);
-                    let num = *f / gcd;
-                    *d = (num / *f).round();
-                    *f = num.round();
+                    if f.is_finite() {
+                        let gcd = pervade::or::num_num(*f, 1.0);
+                        let num = *f / gcd;
+                        *d = (num / *f).round();
+                        *f = num.round();
+                    } else if f.is_infinite() {
+                        *f = f.signum();
+                        *d = 0.0;
+                    } else {
+                        *f = f64::NAN;
+                        *d = f64::NAN;
+                    }
                 }
                 let denom = Array::new(arr.shape.clone(), denom_data);
                 (arr.into(), denom.into())

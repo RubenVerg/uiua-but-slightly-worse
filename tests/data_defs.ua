@@ -53,9 +53,20 @@ S~PushB
 F! ← ^0 Foo
 ⍤⤙≍ 5 F!Foo!Bar
 
+~Foo {A B C}
+Foo 1 2 3
+⍤⤙⊸≍ Foo 3 2 1 ⍜Foo!⊃A C :
+⍤⤙≍ Foo 4 5 6 °⊸Foo!⊃(C|B|A) 6 5 4
+
 # Unnamed top-level def
 ~ {Foo Bar}
 ⍤⤙≍ [3 5] [⊃Foo Bar] New 3 5
+
+# Import followed by def
+~ "example" ~ Bar
+~Foo {A B C}
+⍤⤙≍ {1 2 3} Foo 1 2 3
+⍤⤙≍ "bar" Bar
 
 # Experimental!
 
@@ -106,3 +117,9 @@ M! ← F^0
 
 ~F {A ← 0|B ← 0|C ← 0|D ← 0} ∘
 ⍤⤙≍ {2 3 4 1} F D:1 ⊓A:C: 2 B:3 4
+
+┌─╴A
+  Call ← +1
+  B    ← A
+└─╴
+⍤⤙≍ 6 A~B 5

@@ -72,11 +72,12 @@ impl Compiler {
                 _ => None,
             }) {
                 if let Ok(Some((path_locals, local))) = self.ref_local(r) {
-                    let is_noadic_function = match &self.asm.bindings[local.index].kind {
-                        BindingKind::Func(f) if f.sig.args() == 0 => true,
-                        _ => false,
+                    let allow_alias = match &self.asm.bindings[local.index].kind {
+                        BindingKind::Func(f) if f.sig.args() == 0 => false,
+                        BindingKind::Scope(_) => false,
+                        _ => true,
                     };
-                    if !is_noadic_function {
+                    if allow_alias {
                         self.validate_local(&r.name.value, local, &r.name.span);
                         (self.code_meta.global_references)
                             .insert(binding.name.span.clone(), local.index);
@@ -303,13 +304,13 @@ impl Compiler {
         let in_function = self
             .scopes()
             .any(|sc| matches!(sc.kind, ScopeKind::Function));
+        let no_code_words = binding.words.iter().all(|w| !w.value.is_code());
         self.current_bindings.push(CurrentBinding {
             name: name.clone(),
             signature: binding.signature.as_ref().map(|s| s.value),
             recurses: 0,
             global_index: local.index,
         });
-        let no_code_words = binding.words.iter().all(|w| !w.value.is_code());
 
         // Compile the words
         let (_, mut node) = self.in_scope(ScopeKind::Binding, |comp| {
@@ -319,6 +320,15 @@ impl Compiler {
             })
         })?;
         let self_referenced = self.current_bindings.pop().unwrap().recurses > 0;
+        if self_referenced && binding.signature.is_none() {
+            self.add_error(
+                span.clone(),
+                format!(
+                    "Recursive function `{name}` must have a \
+                    signature declared after the ←."
+                ),
+            );
+        }
         let is_obverse = node
             .iter()
             .any(|n| matches!(n, Node::CustomInverse(cust, _) if cust.is_obverse));
@@ -351,6 +361,13 @@ impl Compiler {
                 .insert(name.clone(), self.asm.functions.len());
         }
 
+        // Apply doc comment
+        if let Some(comment) = &meta.comment {
+            if let Some(sig) = &comment.sig {
+                self.apply_node_comment(&mut node, sig, &name, span);
+            }
+        }
+
         // Resolve signature
         match node.sig() {
             Ok(mut sig) => {
@@ -358,8 +375,19 @@ impl Compiler {
                 if !binds_above {
                     // Validate signature
                     if let Some(declared_sig) = &binding.signature {
-                        node = self.force_sig(node, declared_sig.value, &declared_sig.span);
-                        sig = declared_sig.value;
+                        if self_referenced && declared_sig.value.outputs() > 10 {
+                            return Err(self.error(
+                                span.clone(),
+                                format!(
+                                    "Recursive functions may have at most 10 outputs, \
+                                    but {name} has signature {}",
+                                    declared_sig.value
+                                ),
+                            ));
+                        } else {
+                            node = self.force_sig(node, declared_sig.value, &declared_sig.span)?;
+                            sig = declared_sig.value;
+                        }
                     }
                 }
 
@@ -367,7 +395,7 @@ impl Compiler {
                     // Binding is a constant
                     let val = if let [Node::Push(v)] = node.as_slice() {
                         Some(v.clone())
-                    } else if node.is_pure(Purity::Pure, &self.asm) {
+                    } else if node.is_pure(&self.asm) {
                         match self.comptime_node(&node) {
                             Ok(Some(vals)) => vals.into_iter().next(),
                             Ok(None) => None,
@@ -384,7 +412,7 @@ impl Compiler {
                     self.compile_bind_const(name, local, val, spandex, meta);
                     if !is_const {
                         // Add binding instrs to unevaluated constants
-                        if node.is_pure(Purity::Pure, &self.asm) {
+                        if node.is_pure(&self.asm) {
                             self.macro_env
                                 .rt
                                 .unevaluated_constants
@@ -423,7 +451,7 @@ impl Compiler {
                         let mut node = Node::empty();
                         // Validate signature
                         if let Some(declared_sig) = &binding.signature {
-                            node = self.force_sig(node, declared_sig.value, &declared_sig.span);
+                            node = self.force_sig(node, declared_sig.value, &declared_sig.span)?;
                             sig = declared_sig.value;
                         }
                         let func = make_fn(node, sig, self);
@@ -467,7 +495,7 @@ impl Compiler {
                 self.next_global += 1;
                 let local = LocalName {
                     index: global_index,
-                    public: true,
+                    public: m.public,
                 };
                 let meta = BindingMeta {
                     comment: prelude.comment.as_deref().map(DocComment::from),
@@ -487,6 +515,7 @@ impl Compiler {
             }
             ModuleKind::Test => (ScopeKind::Test, None),
         };
+        // Compile items
         let (module, ()) = self.in_scope(scope_kind, |comp| {
             comp.items(m.items, ItemCompMode::TopLevel)?;
             comp.end_enum()?;
@@ -494,7 +523,7 @@ impl Compiler {
         })?;
         if let Some((name, local)) = name_and_local {
             // Named module
-            // Add imports
+            // Add local imports
             if let Some(line) = m.imports {
                 for item in line.items {
                     if let Some(mut local) = module.names.get(&item.value).copied() {
@@ -536,7 +565,7 @@ impl Compiler {
             self.next_global += 1;
             let local = LocalName {
                 index: global_index,
-                public: true,
+                public: import.public,
             };
             self.asm.add_binding_at(
                 local,

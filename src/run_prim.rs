@@ -83,7 +83,7 @@ pub fn run_prim_func(prim: &Primitive, env: &mut Uiua) -> UiuaResult {
         Primitive::Abs => env.monadic_env(Value::abs)?,
         Primitive::Sign => env.monadic_env(Value::sign)?,
         Primitive::Sqrt => env.monadic_env(Value::sqrt)?,
-        Primitive::Ln => env.monadic_env(Value::ln)?,
+        Primitive::Exp => env.monadic_env(Value::exp)?,
         Primitive::Sin => env.monadic_env(Value::sin)?,
         Primitive::Floor => env.monadic_env(Value::floor)?,
         Primitive::Ceil => env.monadic_env(Value::ceil)?,
@@ -585,7 +585,7 @@ impl ImplPrimitive {
             ImplPrimitive::Cos => env.monadic_env(Value::cos)?,
             ImplPrimitive::Asin => env.monadic_env(Value::asin)?,
             ImplPrimitive::Acos => env.monadic_env(Value::acos)?,
-            ImplPrimitive::Exp => env.monadic_env(Value::exp)?,
+            ImplPrimitive::Ln => env.monadic_env(Value::ln)?,
             ImplPrimitive::Log => env.dyadic_oo_env(Value::log)?,
             ImplPrimitive::UnPop => {
                 let fv = (env.last_fill()).ok_or_else(|| env.error("No fill set").fill())?;
@@ -892,6 +892,12 @@ impl ImplPrimitive {
                 env.push(from.undo_drop(index, into, env)?);
             }
             ImplPrimitive::UndoFix => env.monadic_mut(Value::undo_fix)?,
+            ImplPrimitive::UndoShape => {
+                let mut val = env.pop(1)?;
+                let shape = env.pop(2)?;
+                val.undo_shape(&shape, env)?;
+                env.push(val);
+            }
             ImplPrimitive::UndoDeshape(sub) => {
                 let shape = Shape::from(
                     env.pop(1)?

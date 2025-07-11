@@ -451,9 +451,9 @@ impl<'a> AlgebraEnv<'a> {
                     self.stack.push(res);
                     self.handled += 1;
                 }
-                Ln => {
+                Exp => {
                     let a = self.pop()?;
-                    let res = a.log(E.into()).ok_or(AlgebraError::TooComplex)?;
+                    let res = Expr::from(E).pow(a).ok_or(AlgebraError::TooComplex)?;
                     self.stack.push(res);
                     self.handled += 1;
                 }
@@ -483,9 +483,9 @@ impl<'a> AlgebraEnv<'a> {
                     self.stack.push(Term::Cos(a).into());
                     self.handled += 1;
                 }
-                Exp => {
+                Ln => {
                     let a = self.pop()?;
-                    let res = Expr::from(E).pow(a).ok_or(AlgebraError::TooComplex)?;
+                    let res = a.log(E.into()).ok_or(AlgebraError::TooComplex)?;
                     self.stack.push(res);
                     self.handled += 1;
                 }

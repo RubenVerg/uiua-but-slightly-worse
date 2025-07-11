@@ -608,6 +608,17 @@ impl SysBackend for NativeSys {
             }
         }
     }
+    fn seek(&self, handle: Handle, offset: super::StreamSeek) -> Result<(), String> {
+        use std::io::Seek;
+
+        match NATIVE_SYS.get_stream(handle)? {
+            SysStream::File(mut file) => file
+                .seek(offset.into())
+                .map_err(|e| e.to_string())
+                .map(|_| ()),
+            _ => Err("Cannot seek this stream".into()),
+        }
+    }
     #[cfg(feature = "clipboard")]
     fn clipboard(&self) -> Result<String, String> {
         use arboard::*;

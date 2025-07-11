@@ -219,14 +219,15 @@ primitive!(
     /// ex: √₄81
     ///
     (1, Sqrt, MonadicPervasive, ("sqrt", '√')),
-    /// Get the natural logarithm of a number
+    /// Get the exponential of a number
     ///
-    /// ex: ◜e
-    /// ex: ◜2
-    ///
-    /// Subscripted [ln] gives the base n logarithm.
-    /// ex: ◜₂4
-    (1, Ln, MonadicPervasive, ("ln", '◜')),
+    /// ex: ₑ 1
+    /// You can get the natural logarithm with [un].
+    /// ex: °ₑ e
+    /// You can give a subscript to set the base.
+    /// ex: ₑ₂ 8
+    ///   : ₑ₁₀ 6
+    (1, Exp, MonadicPervasive, ("exponential", 'ₑ')),
     /// Get the sine of a number
     ///
     /// ex: ∿ 1
@@ -494,7 +495,7 @@ primitive!(
     /// ex: °∠ π
     /// ex: °∠ π/3
     /// This means it can be combined with [divide] to get the tangent.
-    /// ex: ÷°∠ η/2
+    /// ex: ˜÷°∠ π/3
     (2, Atan, DyadicPervasive, ("atangent", '∠')),
     /// Make a complex number
     ///
@@ -1800,8 +1801,9 @@ primitive!(
     /// The function then processes each group in order. The result depends on what the function is.
     /// If the function takes 0 or 1 arguments, then [group] behaves like [rows].
     /// ex: ⊕∘ [0 2 2 1 0 1] [1 2 3 4 5 6]
-    /// If the values returned by the function do not have the same [shape], concatenation will fail.
+    /// If the values returned by the function do not have the same [shape], concatenation will fail unless a [fill] is supplied.
     /// ex! ⊕∘ [0 1 0 2 1 1] [1 2 3 4 5 6]
+    /// ex: ⬚∞⊕∘ [0 1 0 2 1 1] [1 2 3 4 5 6]
     /// It is common to use [box] to encapsulate groups of different [shape]s.
     /// ex: ⊕□ [0 1 0 2 1 1] [1 2 3 4 5 6]
     ///
@@ -1842,8 +1844,9 @@ primitive!(
     /// The function then processes each group in order. The result depends on what the function is.
     /// If the function takes 0 or 1 arguments, then [partition] behaves like [rows].
     /// ex: ⊜∘ [0 0 2 2 1 1 3 3] [1 2 3 4 5 6 7 8]
-    /// If the values returned by the function do not have the same [shape], concatenation will fail.
+    /// If the values returned by the function do not have the same [shape], concatenation will fail unless a [fill] is supplied.
     /// ex! ⊜∘ [0 2 3 3 3 0 1 1] [1 2 3 4 5 6 7 8]
+    /// ex: ⬚∞⊜∘ [0 2 3 3 3 0 1 1] [1 2 3 4 5 6 7 8]
     /// It is common to use [box] to encapsulate groups of different [shape]s.
     /// ex: ⊜□ [0 2 3 3 3 0 1 1] [1 2 3 4 5 6 7 8]
     ///
@@ -2096,13 +2099,13 @@ primitive!(
     /// ex: ˙⊞+ 1_2_3
     /// ex: ˙(⊂⊂) π
     ([1], Slf, Stack, ("self", '˙')),
-    /// Call a function with its arguments reversed
+    /// Call a function with its arguments swapped
     ///
     /// ex:  - 2 5
     ///   : ˜- 2 5
     /// ex: ˜⊂ 1 [2 3]
     /// ex: °˜⊂ [1 2 3]
-    /// If the function takes 4 arguments, the second two arguments are reversed.
+    /// If the function takes 4 arguments, the second two arguments are swapped.
     /// ex: ˜⊟₄ 1 2 3 4
     /// ex: [˜∩⊟] 1 2 3 4
     /// [backward] is currently only allowed with dyadic and tetradic functions.
@@ -2315,7 +2318,7 @@ primitive!(
     /// ex: ⍢(×3|<100)  1
     ///   : ⍢(×3|<100.) 1
     /// The net stack change of the two functions, minus the condition, is called the *composed signature*.
-    /// A composed signature with a positive net stack change is only allowed inside an array.
+    /// A composed signature with a positive net stack change will collect the outputs into an array.
     /// ex: ⍢(⊸×2|≤1000) 10
     /// ex: ⍢(.×2|≤1000) 10
     /// A composed signature with a negative net stack change will reuse values lower on the stack.
@@ -2551,7 +2554,7 @@ primitive!(
     /// ex: ↯3_3⇡9
     ///   : wait≡spawn/+.
     ///
-    /// For spawn threads in a thread pool, use [pool].
+    /// To spawn threads in a thread pool, use [pool].
     ([1], Spawn, Thread, "spawn", Impure),
     /// Spawn a thread in a thread pool
     ///
@@ -3768,6 +3771,12 @@ sys_op! {
     /// ex: &cl &w "Hello, world!" . &fc "file.txt"
     ///   : &fras "file.txt"
     (2(0), Write, Stream, "&w", "write", Mutating),
+    /// Move to an absolute position in a file stream
+    ///
+    /// If the position is negative, it is an offset from the file end.
+    ///
+    /// ex: &rs 4 ⊸&seek 47 &fo "example.txt"
+    (2(0), Seek, Stream, "&seek", "seek", Mutating),
     /// Invoke a path with the system's default program
     (1(1), Invoke, Command, "&invk", "invoke", Mutating),
     /// Close a stream by its handle
@@ -3952,7 +3961,7 @@ sys_op! {
     /// Accept a connection with a TCP or TLS listener
     ///
     /// Returns a stream handle
-    /// [under][&tcpl] calls [&cl] automatically.
+    /// [under][&tcpa] calls [&cl] automatically.
     (1, TcpAccept, Tcp, "&tcpa", "tcp - accept", Mutating),
     /// Create a TCP socket and connect it to an address
     ///

@@ -4,7 +4,7 @@
 
 ### Data Functions
 
-If the fields of a data definition are immediately follwed by some code, the data definition becomes a *data function*. Data functions have a `Call` function defined which is invoked instead of the normal `New` constructor when the data definition's name is used as a function.
+If the fields of a data definition are immediately followed by some code, the data definition becomes a *data function*. Data functions have a `Call` function defined which is invoked instead of the normal `New` constructor when the data definition's name is used as a function.
 
 The normal constructor is called, then the constructed data is passed to the function.
 
@@ -137,7 +137,7 @@ Notice that even though [divide](/docs/divide) is on the last line of the pack, 
 
 Those need to do the same thing for consistency reasons, but the first example seems backwards! The function that is further down in the actual source runs first, so to read in execution order, we have to read from the bottom up.
 
-To solve this, we can prefix function pack with a `↓` symbol, which formats from `|,`. See how it changes the flow of the pack:
+To solve this, we can prefix the function pack with a `↓` symbol, which formats from `|,`. See how it changes the flow of the pack:
 
 ```uiua
 # Experimental!

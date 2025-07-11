@@ -8,8 +8,8 @@ use uiua::{Primitive, SysOp, EXAMPLE_UA};
 use uiua_editor::*;
 
 use crate::{
-    markdown::Markdown, other_tutorial::OtherTutorialParams, title_markdown, Challenge, Hd, Prim,
-    Prims,
+    markdown::Markdown, other_tutorial::OtherTutorialParams, title_markdown, Challenge, Hd, Hd3,
+    Prim, Prims,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Sequence)]
@@ -498,7 +498,7 @@ fn TutorialArrays() -> impl IntoView {
         <Editor example="+1 1_2_3"/>
         <Editor example="√[4 9 16]"/>
         <Editor example="+1_2_3 4_5_6"/>
-        <p>"When doing a pervasive operation on two arrays, the shape of one array must be the "<em>"prefix"</em>" of the shape of the other. This means that all the numers in one shape must be at the beginning of the other shape."</p>
+        <p>"When doing a pervasive operation on two arrays, the shape of one array must be the "<em>"prefix"</em>" of the shape of the other. This means that all the numbers in one shape must be at the beginning of the other shape."</p>
         <p>"Here, neither of the shapes "<code>"[2]"</code>" or "<code>"[3]"</code>" are prefixes of the other."</p>
         <Editor example="+[1 2] [3 4 5]"/> // Should fail
         <p>"But here, the shape of the first array ("<code>"[2]"</code>") is a prefix of the shape of the second array ("<code>"[2 3]"</code>")."</p>
@@ -1591,6 +1591,14 @@ fn TutorialModules() -> impl IntoView {
         <p>"To enter this arrow, you can put a "<code>"~"</code>" after a binding's normal "<code>"←"</code>" or "<code>"="</code>"."</p>
         <p>"Try formatting the following example to see how this works."</p>
         <Editor example="A = +1\nB ← +2\nC =~ +3\nD ←~ +4"/>
+        <Hd3 id="private-imports">"Private Imports"</Hd3>
+        <p>"Imports can be made private by using a "<code>"≁"</code>" instead of the first "<code>"~"</code>". "<code>"≁"</code>" formats from "<code>"~~"</code>"."</p>
+        <Editor example="# Try formatting!\n┌─╴M\n  Ex ~~ \"example\"\n└─╴\nM~Ex~Foo"/> // Should fail
+        <Hd3 id="private-scoped-modules">"Private Scoped Modules"</Hd3>
+        <p>"Scoped modules can be made private with special delimiters "<code>"┌╶╶"</code>" and "<code>"└╶╶"</code>". These format from the normal delimiters or "<code>"---"</code>"s followed by a "<code>"~"</code>"."</p>
+        <Editor example="┌─╴A\n  ┌╶╶B\n    C ← 5\n  └╶╶\n└─╴\nA~B~C"/> // Should fail
+        <Editor example = "# Try formatting!\n---A\n  ---~M\n    F = +1\n  ---\n---\nA~M~F 5"/> // Should fail
+        <p>"The formatter will automatically change the closing delimiter to match its corresponding opening delimiter."</p>
 
         <Hd id="git-modules">"Git Modules"</Hd>
         <p>"Modules can be imported from Git repositories. Instead of a path, use a URL prefixed with "<code>"git:"</code>"."</p>
