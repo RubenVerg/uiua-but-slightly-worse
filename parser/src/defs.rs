@@ -134,10 +134,10 @@ primitive!(
     (1(0), Pop, Stack, ("pop", '◌')),
     /// Do nothing with one value
     ///
-    /// ex: ∘ 5
+    /// ex: ∸ 5
     ///
     /// [identity] is mostly useless on its own. See the [More Stack Manipulation Tutorial](/tutorial/morestack) to understand what it is for.
-    (1, Identity, Planet, ("identity", '∘')),
+    (1, Identity, Planet, ("identity", '∸')),
     // Pervasive monadic ops
     /// Logical not
     ///
