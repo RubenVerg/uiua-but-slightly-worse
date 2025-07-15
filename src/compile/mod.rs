@@ -2260,6 +2260,65 @@ impl Compiler {
                 let span = self.add_span(span);
                 Node::ImplPrim(ImplPrimitive::SidedEncodeBytes(side), span)
             }
+            Invoke => {
+                let ospan = span.clone();
+                let span = self.add_span(span);
+                let err = format!(
+                    "{} subscript should either be a number or a number + side + number",
+                    Invoke
+                );
+                if let Some(side) = scr.value.side {
+                    if let Some(NumericSubscript::N(args)) = scr.value.num {
+                        if let Some(ret) = side.n {
+                            Node::from_iter([
+                                Node::Array {
+                                    len: self.positive_subscript(args, Invoke, &ospan.clone()),
+                                    inner: Node::empty().into(),
+                                    boxed: true,
+                                    allow_ext: false,
+                                    prim: Some(Invoke),
+                                    span,
+                                },
+                                Node::Prim(Invoke, span),
+                                Node::Unpack {
+                                    count: ret,
+                                    unbox: true,
+                                    allow_ext: false,
+                                    prim: Some(Invoke),
+                                    span,
+                                },
+                            ])
+                        } else {
+                            self.add_error(ospan.clone(), err);
+                            Node::Prim(Invoke, span)
+                        }
+                    } else {
+                        self.add_error(ospan.clone(), err);
+                        Node::Prim(Invoke, span)
+                    }
+                } else if let Some(NumericSubscript::N(num)) = scr.value.num {
+                    Node::from_iter([
+                        Node::Array {
+                            len: self.positive_subscript(num, Invoke, &ospan.clone()),
+                            inner: Node::empty().into(),
+                            boxed: true,
+                            allow_ext: false,
+                            prim: Some(Invoke),
+                            span,
+                        },
+                        Node::Prim(Invoke, span),
+                        Node::Unpack {
+                            count: 1,
+                            unbox: true,
+                            allow_ext: false,
+                            prim: Some(Invoke),
+                            span,
+                        },
+                    ])
+                } else {
+                    Node::Prim(Invoke, span)
+                }
+            }
             prim => {
                 let Some(n) = self.subscript_n_only(&scr, prim.format()) else {
                     return Ok(self.primitive(prim, span));
