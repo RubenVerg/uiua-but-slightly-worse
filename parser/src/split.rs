@@ -265,42 +265,23 @@ pub fn split_name(name: &str) -> Option<Vec<(PrimComponent, &str)>> {
                 continue;
             }
             // 1-letter planet notation
-            if sub_name
-                .strip_prefix(['f', 'w', 'o'])
-                .unwrap_or(sub_name)
-                .strip_suffix(['i', 'p'])
-                .unwrap_or(sub_name)
+            let unforked = sub_name.strip_prefix('f').unwrap_or(sub_name);
+            if unforked
+                .strip_suffix(['i', 'p', 'f'])
+                .unwrap_or(unforked)
                 .chars()
                 .all(|c| "gd".contains(c))
-                && sub_name != "fi"
             {
                 for (i, c) in sub_name.char_indices() {
                     let prim = match c {
-                        'f' => Primitive::Fork,
+                        'f' if i == 0 => Primitive::Fork,
+                        'f' => Primitive::Fix,
                         'g' => Primitive::Gap,
                         'd' => Primitive::Dip,
                         'i' => Primitive::Identity,
                         'p' => Primitive::Pop,
                         'w' => Primitive::With,
                         'o' => Primitive::Off,
-                        _ => unreachable!(),
-                    };
-                    prims.push((prim.into(), &sub_name[i..i + 1]))
-                }
-                start += len;
-                continue 'outer;
-            }
-            // Dip fix
-            if sub_name
-                .strip_suffix('f')
-                .unwrap_or(sub_name)
-                .chars()
-                .all(|c| c == 'd')
-            {
-                for (i, c) in sub_name.char_indices() {
-                    let prim = match c {
-                        'd' => Primitive::Dip,
-                        'f' => Primitive::Fix,
                         _ => unreachable!(),
                     };
                     prims.push((prim.into(), &sub_name[i..i + 1]))
