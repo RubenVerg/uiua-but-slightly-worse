@@ -2717,7 +2717,7 @@ primitive!(
     /// ex: now
     /// [under][now] can be used to time a function.
     /// ex: ⍜now(5&sl1)
-    (0, Now, Time, "now", Impure),
+    (0, Now, Time, ("now", '⧖'), Impure),
     /// Get the date and time information from a time
     ///
     /// You can use [now] to get the current time in seconds since the Unix epoch.
