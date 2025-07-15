@@ -1,5 +1,5 @@
 
-<img src="site/assets/uiua-but-worse-logo.png" width="140"/> 
+<img src="site/assets/uiua-but-slightly-worse-logo.png" width="140"/> 
 
 # Uiua but slightly worse
 
