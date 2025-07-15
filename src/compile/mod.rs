@@ -2273,6 +2273,20 @@ impl Compiler {
                     {
                         Node::from_iter([Node::new_push(n), self.primitive(prim, span)])
                     }
+                    Identity => {
+                        let mut node = Node::empty().sig_node().unwrap();
+                        if n == 0 {
+                            node.into()
+                        } else {
+                            let span = self.add_span(span);
+                            for _ in 0..n {
+                                node = Node::Mod(Primitive::Dip, [node].into(), span)
+                                    .sig_node()
+                                    .unwrap();
+                            }
+                            node.into()
+                        }
+                    }
                     Deshape => Node::ImplPrim(ImplPrimitive::DeshapeSub(n), self.add_span(span)),
                     Transpose => {
                         self.subscript_experimental(prim, &span);
