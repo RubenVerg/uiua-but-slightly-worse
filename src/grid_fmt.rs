@@ -561,7 +561,7 @@ impl GridFmt for Boxed {
                     for row in &mut grid {
                         row.insert(0, ' ');
                     }
-                    grid[(height - 1) / 2][0] = symbol;
+                    grid[height / 2][0] = symbol;
                 }
             }
         }
@@ -656,8 +656,14 @@ impl<T: GridFmt + ArrayValue> GridFmt for Array<T> {
         //     params.max_boxed_len
         // );
         let mut outlined = false;
-        let mut grid = if let Some(pointer) = self.meta.pointer.filter(|p| p.raw) {
-            vec![format!("0x{:x}", pointer.ptr).chars().collect()]
+        let mut grid = if let Some(pointer) = self.meta.pointer.as_ref() {
+            let mut ffi_type = pointer.ty.to_string();
+            if ffi_type.len() > 20 {
+                ffi_type = "{…}".to_string();
+            }
+            vec![format!("0x{:x}: {}", pointer.ptr, ffi_type)
+                .chars()
+                .collect()]
         } else if self.rank() == 0 && !self.is_map() {
             // Scalar
             let params = GridFmtParams {
@@ -709,7 +715,7 @@ impl<T: GridFmt + ArrayValue> GridFmt for Array<T> {
                 }
             }
 
-            // SoA
+            // SoA (struct-of-arrays)
             let mut is_soa = false;
             if let Some(rows) = T::soa_rows(self) {
                 is_soa = true;
@@ -720,7 +726,7 @@ impl<T: GridFmt + ArrayValue> GridFmt for Array<T> {
                 }
                 metagrid.push(labels_row);
                 let row_params = GridFmtParams {
-                    label: false,
+                    label: true,
                     soa_row: true,
                     ..Default::default()
                 };
@@ -952,7 +958,10 @@ impl<T: GridFmt + ArrayValue> GridFmt for Array<T> {
                             && params.max_boxed_rank != 1))
                 {
                     // Disambiguate fixed arrays
-                    let fix_amnt = self.shape.iter().take_while(|&&d| d == 1).count();
+                    let mut fix_amnt = self.shape.iter().take_while(|&&d| d == 1).count();
+                    if T::compress_list_grid() && self.shape.last() == Some(&1) {
+                        fix_amnt = fix_amnt.saturating_sub(1);
+                    }
                     for row in &mut grid {
                         row.extend(repeat_n(' ', fix_amnt));
                         row.rotate_right(fix_amnt);
@@ -1026,13 +1035,6 @@ impl<T: GridFmt + ArrayValue> GridFmt for Array<T> {
                         grid[0].push(' ');
                     }
                 }
-            }
-        }
-
-        // Add pointer
-        if let Some(pointer) = self.meta.pointer.filter(|p| !p.raw) {
-            if grid.len() == 1 {
-                grid[0].extend(format!("(0x{:x})", pointer.ptr).chars());
             }
         }
 

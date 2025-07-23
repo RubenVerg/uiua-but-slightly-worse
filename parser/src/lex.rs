@@ -692,7 +692,7 @@ impl Token {
     }
     pub(crate) fn as_subscript(&self) -> Option<Subscript> {
         match self {
-            Token::Subscr(n) => Some(*n),
+            Token::Subscr(sub) => Some(sub.clone()),
             _ => None,
         }
     }
@@ -1449,6 +1449,7 @@ impl<'a> Lexer<'a> {
         can_parse_ascii: &mut bool,
         got_neg: &mut bool,
         too_large: &mut bool,
+        s: &mut EcoString,
         num: &mut Option<i32>,
     ) {
         loop {
@@ -1458,6 +1459,7 @@ impl<'a> Lexer<'a> {
                     || *can_parse_ascii && (self.next_char_exact("`") || self.next_char_exact("¯")))
             {
                 *got_neg = true;
+                s.push('¯');
             } else if let Some(c) = can_parse_ascii
                 .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
                 .flatten()
@@ -1465,9 +1467,11 @@ impl<'a> Lexer<'a> {
                 let num = num.get_or_insert(0);
                 let (new_num, overflow) = num.overflowing_mul(10);
                 *too_large |= overflow;
-                let (new_num, overflow) = new_num.overflowing_add(c.parse::<i32>().unwrap());
+                let n = c.parse::<i32>().unwrap();
+                let (new_num, overflow) = new_num.overflowing_add(n);
                 *too_large |= overflow;
                 *num = new_num;
+                s.push(char::from_u32('₀' as u32 + n as u32).unwrap());
             } else if let Some(c) = self.next_char_if_all(|c| SUBSCRIPT_DIGITS.contains(&c)) {
                 let i = SUBSCRIPT_DIGITS
                     .iter()
@@ -1480,6 +1484,7 @@ impl<'a> Lexer<'a> {
                 *too_large |= overflow;
                 *num = new_num;
                 *can_parse_ascii = false;
+                s.push_str(c);
             } else if self.next_chars_exact(["_"; 2]) || self.next_char_exact(",") {
                 *can_parse_ascii = true;
             } else {
@@ -1494,22 +1499,31 @@ impl<'a> Lexer<'a> {
         let mut num = None;
         let mut side = None;
         let mut side_num = None;
+        let mut n_str = EcoString::new();
         match init {
             "⌞" => side = Some(SubSide::Left),
             "⌟" => side = Some(SubSide::Right),
             "₋" => got_neg = true,
             "__" | "," => can_parse_ascii = true,
             c if c.chars().all(|c| SUBSCRIPT_DIGITS.contains(&c)) => {
-                num = SUBSCRIPT_DIGITS
-                    .iter()
+                let n = (SUBSCRIPT_DIGITS.iter())
                     .position(|&d| d == c.chars().next().unwrap())
-                    .map(|i| i as i32);
+                    .map(|i| i as i32)
+                    .unwrap();
+                num = Some(n);
+                n_str.push_str(c);
             }
             _ => {}
         }
         // Parse number
         if side.is_none() {
-            self.sub_num(&mut can_parse_ascii, &mut got_neg, &mut too_large, &mut num);
+            self.sub_num(
+                &mut can_parse_ascii,
+                &mut got_neg,
+                &mut too_large,
+                &mut n_str,
+                &mut num,
+            );
         }
         // Parse side
         if side.is_none() {
@@ -1530,6 +1544,7 @@ impl<'a> Lexer<'a> {
                 &mut can_parse_ascii,
                 &mut true,
                 &mut too_large,
+                &mut EcoString::new(),
                 &mut side_num,
             );
             if too_large {
@@ -1538,7 +1553,7 @@ impl<'a> Lexer<'a> {
         }
         Subscript {
             num: if too_large {
-                Some(NumericSubscript::TooLarge)
+                Some(NumericSubscript::TooLarge(n_str))
             } else if let Some(mut n) = num {
                 if got_neg {
                     n = -n;

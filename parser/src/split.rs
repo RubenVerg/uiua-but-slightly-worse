@@ -210,7 +210,7 @@ impl Primitive {
             (
                 "kork",
                 &[
-                    (PrimComponent::Prim(Keep), "keep"),
+                    (PrimComponent::Prim(Keep), "kor"),
                     (PrimComponent::Sub2, "k"),
                 ],
             ),

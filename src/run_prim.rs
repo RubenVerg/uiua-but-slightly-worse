@@ -565,6 +565,11 @@ impl ImplPrimitive {
             ImplPrimitive::DeshapeSub(i) => {
                 env.monadic_mut_env(|val, env| val.deshape_sub(*i, 0, true, env))?
             }
+            &ImplPrimitive::ParseSub(i) => {
+                let strs = env.pop(1)?;
+                let nums = strs.parse_base(i, env)?;
+                env.push(nums);
+            }
             &ImplPrimitive::SidedEncodeBytes(side) => {
                 let format = env.pop(1)?;
                 let value = env.pop(2)?;
@@ -707,6 +712,11 @@ impl ImplPrimitive {
                 env.push(denom);
             }
             ImplPrimitive::UnParse => env.monadic_env(Value::unparse)?,
+            &ImplPrimitive::UnParseSub(i) => {
+                let nums = env.pop(1)?;
+                let strs = nums.unparse_base(i, env)?;
+                env.push(strs);
+            }
             ImplPrimitive::UnFix => env.monadic_mut_env(Value::unfix)?,
             ImplPrimitive::UnShape => env.monadic_ref_env(Value::unshape)?,
             ImplPrimitive::StackN { n, inverse } => stack_n(env, *n, *inverse)?,
@@ -2091,7 +2101,7 @@ mod tests {
                     {
                         continue;
                     }
-                    println!("{prim} example:\n{}", ex.input); // Allow println
+                    eprintln!("{prim} example:\n{}", ex.input);
                     let mut env = Uiua::with_backend(SafeSys::with_thread_spawning());
                     match env.run_str(&ex.input) {
                         Ok(mut comp) => {

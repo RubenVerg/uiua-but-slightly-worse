@@ -22,7 +22,8 @@ use dashmap::DashMap;
 use once_cell::sync::Lazy;
 
 use crate::{
-    terminal_size, GitTarget, Handle, ReadLinesFn, ReadLinesReturnFn, Span, SysBackend, Uiua, Value,
+    terminal_size, GitTarget, Handle, MetaPtr, ReadLinesFn, ReadLinesReturnFn, Span, SysBackend,
+    Uiua, Value,
 };
 
 /// The default native system backend
@@ -1095,25 +1096,24 @@ impl SysBackend for NativeSys {
         file: &str,
         return_ty: crate::FfiType,
         name: &str,
-        arg_tys: &[crate::FfiType],
-        arg_values: &[crate::Value],
+        arg_tys: &[crate::FfiArg],
+        arg_values: Vec<crate::Value>,
     ) -> Result<crate::Value, String> {
         NATIVE_SYS
             .ffi
             .do_ffi(file, return_ty, name, arg_tys, arg_values)
     }
     #[cfg(feature = "ffi")]
-    fn mem_copy(
-        &self,
-        ty: crate::FfiType,
-        ptr: *const (),
-        len: usize,
-    ) -> Result<crate::Value, String> {
-        crate::ffi_copy(ty, ptr, len)
+    fn mem_copy(&self, ptr: MetaPtr, len: usize) -> Result<Value, String> {
+        crate::ffi_copy(ptr, len)
     }
     #[cfg(feature = "ffi")]
-    fn mem_free(&self, ptr: *const ()) -> Result<(), String> {
-        crate::ffi_free(ptr);
+    fn mem_set(&self, ptr: MetaPtr, idx: usize, value: Value) -> Result<(), String> {
+        crate::ffi_set(ptr, idx, value)
+    }
+    #[cfg(feature = "ffi")]
+    fn mem_free(&self, ptr: &MetaPtr) -> Result<(), String> {
+        NATIVE_SYS.ffi.ffi_free(ptr);
         Ok(())
     }
     fn load_git_module(&self, url: &str, target: GitTarget) -> Result<PathBuf, String> {
@@ -1215,17 +1215,16 @@ impl SysBackend for NativeSys {
             return Ok(true);
         }
         match env.span() {
-            #[rustfmt::skip]
-            Span::Code(span) => println!( // Allow println
+            Span::Code(span) => eprintln!(
                 "{} at {span} {}",
                 "&b".truecolor(237, 94, 106),
                 "(press enter to continue)".bright_black()
             ),
             Span::Builtin => {}
         }
-        println!(); // Allow println
+        eprintln!();
         print_stack(env.stack(), true);
-        println!(); // Allow println
+        eprintln!();
         _ = stdin().read_line(&mut String::new());
         Ok(true)
     }
@@ -1244,8 +1243,7 @@ pub fn print_stack(stack: &[Value], color: bool) {
         )
         .send();
         _ = Request::ClearBeforeNext.send();
-        #[rustfmt::skip]
-        println!( // Allow println
+        eprintln!(
             "{} value{} displayed in window",
             stack.len(),
             if stack.len() == 1 { "" } else { "s" }
@@ -1257,7 +1255,7 @@ pub fn print_stack(stack: &[Value], color: bool) {
     }
     if stack.len() == 1 || !color {
         for value in stack {
-            println!("{}", value.show()); // Allow println
+            eprintln!("{}", value.show());
         }
         return;
     }
@@ -1276,6 +1274,6 @@ pub fn print_stack(stack: &[Value], color: bool) {
             5 => (w, b, w),
             _ => unreachable!(),
         };
-        println!("{}", value.show().truecolor(r, g, b)); // Allow println
+        eprintln!("{}", value.show().truecolor(r, g, b));
     }
 }

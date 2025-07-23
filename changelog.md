@@ -14,6 +14,8 @@ This version is not yet released. If you are reading this on the website, then t
 - **Breaking Change** - [`under ⍜`](https://uiua.org/docs/under)[`shape △`](https://uiua.org/docs/shape) now tiles the original array to match the new shape instead of [`reshape ↯`](https://uiua.org/docs/reshape)ing
 - **Breaking Change** - [`dip ⊙`](https://uiua.org/docs/dip) and [`on ⟜`](https://uiua.org/docs/on) function packs no longer apply their modifier to the leftmost function
   - This change makes most usecases of these function packs cleaner, as `A⊙(B|C)` changes to `⊙(A|B|C)` and likewise for [`on ⟜`](https://uiua.org/docs/on)
+- **Breaking Change** - The FFI function API has been changed considerably, read more in the documentation for [`&ffi`](https://uiua.org/docs/&ffi), [`&memcpy`](https://uiua.org/docs/&memcpy), and [`&memset`](https://uiua.org/docs/&memset)
+- [`parse ⋕`](https://uiua.org/docs/parse) can be subscripted to parse strings in different bases
 - Allow for private [modules](https://uiua.org/tutorial/modules#private-scoped-modules), [imports](https://uiua.org/tutorial/modules#private-imports), and [data definitions](https://uiua.org/tutorial/datadefs#visibility)
 - Add array pack syntactic sugar. This lets you write code like `[⊃(+|×)]` as `⊃[+|×]`.
 - Subscripts can now be typed with `,` instead of `__`s
@@ -91,7 +93,7 @@ You can find the release announcement [here](https://uiua.org/blog/uiua-0.16.0).
 - Add [`un °`](https://uiua.org/docs/un) [`add +`](https://uiua.org/docs/add), [`un °`](https://uiua.org/docs/un) [`multiply ×`](https://uiua.org/docs/multiply) and [`un °`](https://uiua.org/docs/un) [`divide ÷`](https://uiua.org/docs/divide)
   - These split into fraction and whole, sign and magnitude, and denominator and numerator respectively
 - Add [`un °`](https://uiua.org/docs/un) inverses for [`reduce /`](https://uiua.org/docs/reduce) with a dyadic function (when the function is invertible)
-- Functions can now contains scoped local bindings
+- Functions can now contain scoped local bindings
   - This allows for simple helper functions as well as passing bindings to macros
 - Give [`base ⊥`](https://uiua.org/docs/base) a glyph
 - Add the [`ln`](https://uiua.org/docs/ln) function, which computes the natural logarithm
@@ -99,7 +101,6 @@ You can find the release announcement [here](https://uiua.org/blog/uiua-0.16.0).
 - Add numeric subscripts for [`length ⧻`](https://uiua.org/docs/length) to get the length of a specific axis
 - Add numeric subscripts for [`shape △`](https://uiua.org/docs/shape) to get the shape of the first few axes
 - Add numeric subscripts for [`range ⇡`](https://uiua.org/docs/range) to offset the range
-- Add support for mixed numeric and sided subscripts
 - Greeks rejoice! `η`, `π`, and `τ` can now be used in names (just not as the first letter)
 - Add [`apng`](https://uiua.org/docs/apng) and [`&apngs`](https://uiua.org/docs/&apngs) functions for encoding and showing APNG animations
 - Deprecate [`with ⤙`](https://uiua.org/docs/with) and [`off ⤚`](https://uiua.org/docs/off) on noadic and monadic functions
@@ -107,13 +108,13 @@ You can find the release announcement [here](https://uiua.org/blog/uiua-0.16.0).
   - They made the movement of data on the stack harder to follow
   - **Breaking Change** - Change how [`off ⤚`](https://uiua.org/docs/off) works on monadic functions
     - This change was made before deprecation was decided
-- Deprecate various environment-relate constants and replace them with noadic functions
+- Deprecate various environment-related constants and replace them with noadic functions
   - This prevents the details of the compiling environment being used instead of the details from the actual running environment
   - Deprecrated: `Os`, `Family`, `Arch`, `ExeExt`, `DllExt`, `Sep`, `NumProcs`
   - Replacements: `os`, `osfamily`, `arch`, `exeext`, `dllext`, `pathsep`, `numprocs`
 - Add experimental [`evert ⧋`](https://uiua.org/docs/evert) modifier for operating on the last axes of arrays.
 - Add experimental [`occurrences ⧆`](https://uiua.org/docs/occurrences) for marking each row in an array with its occurent count
-- Add experimental [`progressive indexof ⊘`](https://uiua.org/docs/progressiveindexof) for finding sequential indices of each row of an array in another
+- Add experimental [`progressive indexof ⊘`](https://uiua.org/docs/progressive) for finding sequential indices of each row of an array in another
 - Add experimental [lexical ordering](https://uiua.org/docs/experimental#lexical-ordering) syntax
   - This enables some function packs and array notation to execute in the order they are normally read
 - Add experimental sided [`fill ⬚`](https://uiua.org/docs/fill)

@@ -1590,14 +1590,13 @@ impl Compiler {
     ) -> UiuaResult<Node> {
         let span = self.add_span(ref_span.clone());
         Ok(match self.scope.kind {
-            ScopeKind::Macro(Some(mac_local)) if mac_local.macro_index == local.index => {
+            ScopeKind::Macro(Some(MacroLocal {
+                macro_index,
+                expansion_index: Some(index),
+            })) if macro_index == local.index => {
                 // Recursive
                 if let Some(sig) = mac.sig {
-                    Node::CallMacro {
-                        index: mac_local.expansion_index,
-                        sig,
-                        span,
-                    }
+                    Node::CallMacro { index, sig, span }
                 } else {
                     Node::empty()
                 }
@@ -1616,7 +1615,7 @@ impl Compiler {
                 // Recursive calls then call that binding.
                 // We know that this is a recursive call if the scope tracks
                 // a macro with the same index.
-                let macro_local = mac.recursive.then(|| {
+                let expansion_index = mac.recursive.then(|| {
                     let expansion_index = self.next_global;
                     let count = ident_modifier_args(&name.value);
                     // Add temporary binding
@@ -1630,22 +1629,24 @@ impl Compiler {
                         BindingMeta::default(),
                     );
                     self.next_global += 1;
-                    MacroLocal {
-                        macro_index: local.index,
-                        expansion_index,
-                    }
+                    expansion_index
                 });
+                let macro_local = MacroLocal {
+                    macro_index: local.index,
+                    expansion_index,
+                };
                 // Compile
                 let node = self.suppress_diagnostics(|comp| {
-                    comp.temp_scope(mac.names, macro_local, |comp| comp.words(mac.words))
+                    comp.macro_scope(IndexMap::new(), Some(macro_local), |comp| {
+                        comp.words(mac.words)
+                    })
                 })?;
                 // Add
                 let sig = self.sig_of(&node, &ref_span)?;
                 let id = FunctionId::Macro(Some(name.value), name.span);
                 let func = self.asm.add_function(id, sig, node);
-                if let Some(macro_local) = macro_local {
-                    self.asm.bindings.make_mut()[macro_local.expansion_index].kind =
-                        BindingKind::Func(func.clone());
+                if let Some(exp_index) = macro_local.expansion_index {
+                    self.asm.bindings.make_mut()[exp_index].kind = BindingKind::Func(func.clone());
                 }
                 Node::Call(func, span)
             }
@@ -1785,7 +1786,7 @@ impl Compiler {
                 .macro_expansions
                 .insert(full_span, (mac_name.clone(), code.clone()));
             self.suppress_diagnostics(|comp| {
-                comp.temp_scope(mac.names, None, |comp| {
+                comp.macro_scope(mac.names, None, |comp| {
                     comp.quote(&code, mac_name, &modifier_span)
                 })
             })
@@ -1969,7 +1970,7 @@ impl Compiler {
     }
     /// Run a function in a temporary scope with the given names.
     /// Newly created bindings will be added to the current scope after the function is run.
-    fn temp_scope<T>(
+    fn macro_scope<T>(
         &mut self,
         names: IndexMap<Ident, LocalName>,
         macro_local: Option<MacroLocal>,
