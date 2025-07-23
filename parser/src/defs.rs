@@ -1962,7 +1962,7 @@ primitive!(
     /// ex: [⊃⊙⊙∘(++) 3 5 10]
     ([1], Gap, Planet, ("gap", '⋅')),
     /// Call a function then discard the top stack value
-    /// 
+    ///
     /// ex: ‣unmap map[1 2 3]"abc"
     ([1], Pag, Planet, ("pag", '‣')),
     /// Temporarily pop the top value off the stack and call a function
@@ -2120,7 +2120,7 @@ primitive!(
     /// [backward] is currently only allowed with dyadic and tetradic functions.
     ([1], Backward, Stack, ("backward", '˜')),
     /// Call a function and then swap the results
-    /// 
+    ///
     /// ex: °× ¯3
     ///   : ⍨°× ¯3
     ([1], Drawkcab, Stack, ("drawkcab", '⍨')),

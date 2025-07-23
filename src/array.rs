@@ -16,7 +16,12 @@ use crate::{
     algorithm::{
         map::{MapKeys, EMPTY_NAN, TOMBSTONE_NAN},
         ArrayCmpSlice,
-    }, cowslice::{cowslice, CowSlice}, fill::{Fill, FillValue}, grid_fmt::GridFmt, Boxed, Complex, ExactDoubleIterator, FfiType, HandleKind, Lambda, Node, Shape, SigNode, Value, WILDCARD_CHAR, WILDCARD_NAN
+    },
+    cowslice::{cowslice, CowSlice},
+    fill::{Fill, FillValue},
+    grid_fmt::GridFmt,
+    Boxed, Complex, ExactDoubleIterator, FfiType, HandleKind, Lambda, Node, Shape, SigNode, Value,
+    WILDCARD_CHAR, WILDCARD_NAN,
 };
 
 /// Uiua's array type

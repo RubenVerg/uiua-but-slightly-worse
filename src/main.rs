@@ -1298,11 +1298,13 @@ fn color_code(code: &str, compiler: &Compiler) -> String {
                 _ => None,
             },
             SpanKind::String | SpanKind::ImportSrc(_) => Some(Color::Cyan),
-            SpanKind::Number | SpanKind::Subscript(None, _) | SpanKind::Superscript(_) => Some(Color::TrueColor {
-                r: 235,
-                g: 136,
-                b: 68,
-            }),
+            SpanKind::Number | SpanKind::Subscript(None, _) | SpanKind::Superscript(_) => {
+                Some(Color::TrueColor {
+                    r: 235,
+                    g: 136,
+                    b: 68,
+                })
+            }
             SpanKind::Subscript(Some(prim), n) => color_prim(prim, n.as_ref()),
             SpanKind::Comment | SpanKind::OutputComment | SpanKind::Strand => {
                 Some(Color::BrightBlack)
