@@ -1961,6 +1961,10 @@ primitive!(
     /// ex: [⊃⋅⊙∘(++) 3 5 10]
     /// ex: [⊃⊙⊙∘(++) 3 5 10]
     ([1], Gap, Planet, ("gap", '⋅')),
+    /// Call a function then discard the top stack value
+    /// 
+    /// ex: ‣unmap map[1 2 3]"abc"
+    ([1], Pag, Planet, ("pag", '‣')),
     /// Temporarily pop the top value off the stack and call a function
     ///
     /// See the [More Stack Manipulation Tutorial](/tutorial/morestack) for a more complete understanding of why [dip] is useful.
@@ -2115,6 +2119,11 @@ primitive!(
     /// ex: [˜∩⊟] 1 2 3 4
     /// [backward] is currently only allowed with dyadic and tetradic functions.
     ([1], Backward, Stack, ("backward", '˜')),
+    /// Call a function and then swap the results
+    /// 
+    /// ex: °× ¯3
+    ///   : ⍨°× ¯3
+    ([1], Drawkcab, Stack, ("drawkcab", '⍨')),
     /// Call a function on two sets of values
     ///
     /// For monadic functions, [both] calls its function on each of the top 2 values on the stack.

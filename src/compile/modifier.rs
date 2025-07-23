@@ -500,6 +500,12 @@ impl Compiler {
                 node.prepend(Node::Prim(Pop, span));
                 node
             }
+            Pag => {
+                let (SigNode { mut node, .. }, _) = self.monadic_modifier_op(modified)?;
+                let span = self.add_span(modified.modifier.span.clone());
+                node.push(Node::Prim(Pop, span));
+                node
+            }
             On => {
                 let (sn, _) = self.monadic_modifier_op(modified)?;
                 let span = self.add_span(modified.modifier.span.clone());
@@ -855,6 +861,60 @@ impl Compiler {
                                     "Non-sided {}'s function must take 2 or 4 arguments, \
                                     but its signature is {sig}",
                                     Backward.format(),
+                                ),
+                            );
+                        }
+                    }
+                }
+                node
+            }
+            Drawkcab => {
+                let (SigNode { mut node, sig }, _) = self.monadic_modifier_op(modified)?;
+                let side = subscript.and_then(|sub| {
+                    self.subscript_side_only(&sub, Backward.format())
+                        .map(|side| sub.span.sp(side))
+                });
+                if let Some(side) = side {
+                    self.subscript_experimental(Backward, &side.span);
+                    if sig.outputs() < 2 {
+                        self.add_error(
+                            modified.modifier.span.clone(),
+                            format!(
+                                "Sided {}'s function must return at least 2 outputs, \
+                                but its signature is {sig}",
+                                Drawkcab.format(),
+                            ),
+                        );
+                    }
+                    let span = self.add_span(modified.modifier.span.clone());
+                    let mut flip = Node::Prim(Flip, span);
+                    if side.value == SubSide::Right {
+                        for _ in 0..sig.args().saturating_sub(2) {
+                            flip = Node::Mod(Dip, eco_vec![flip.sig_node().unwrap()], span);
+                        }
+                    }
+                    node.push(flip);
+                } else {
+                    match sig.outputs() {
+                        2 => {
+                            let span = self.add_span(modified.modifier.span.clone());
+                            node.push(Node::Prim(Flip, span));
+                        }
+                        4 => {
+                            let span = self.add_span(modified.modifier.span.clone());
+                            node.push(Node::Mod(
+                                Dip,
+                                eco_vec![Node::Prim(Flip, span).sig_node().unwrap()],
+                                span,
+                            ));
+                        }
+                        _ => {
+                            self.add_error(
+                                modified.modifier.span.clone(),
+                                format!(
+                                    "Non-sided {}'s function must return 2 or 4 outputs, \
+                                    but its signature is {sig}",
+                                    Drawkcab.format(),
                                 ),
                             );
                         }
