@@ -1,7 +1,11 @@
 # Uiua Todo
 
 # 0.17
-- Put scalar dot on the value instead of the label
+- Improve PR validation
+  - Check for clippy lints
+- LSP optimizations
+  - Fix rename
+  - Fix goto references
 - `Variants` field for module
 - Fix caching with labels
 - Fix performance of deep `dip` nesting
