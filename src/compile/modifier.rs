@@ -512,7 +512,7 @@ impl Compiler {
                 if let Some(n) = subscript
                     .and_then(|sub| {
                         self.subscript_n_only(&sub, On)
-                            .map(|n| self.positive_subscript(n, On, &sub.span))
+                            .map(|n| self.finite_and_positive_subscript(n, 1, On, &sub.span))
                     })
                     .filter(|&n| n > 1)
                 {
@@ -528,7 +528,7 @@ impl Compiler {
                 if let Some(n) = subscript
                     .and_then(|sub| {
                         self.subscript_n_only(&sub, On)
-                            .map(|n| self.positive_subscript(n, On, &sub.span))
+                            .map(|n| self.finite_and_positive_subscript(n, 1, On, &sub.span))
                     })
                     .filter(|&n| n > 1)
                 {
@@ -601,7 +601,7 @@ impl Compiler {
                 let sub_span = sub.span;
                 let mut sub = sub
                     .value
-                    .map_num(|n| self.positive_subscript(n, Both, &sub_span) as u32);
+                    .map_num(|n| self.finite_and_positive_subscript(n, 2, Both, &sub_span) as u32);
                 let span = self.add_span(modified.modifier.span.clone());
                 let op = self.monadic_modifier_op(modified)?.0;
                 if let Some(side) = &mut sub.side {
@@ -671,7 +671,7 @@ impl Compiler {
                 let sub_n = subscript
                     .and_then(|sub| {
                         self.subscript_n_only(&sub, prim.format())
-                            .map(|n| self.positive_subscript(n, prim, &sub.span))
+                            .map(|n| self.finite_and_positive_subscript(n, 1, prim, &sub.span))
                     })
                     .filter(|&n| n > 1);
                 if sig.args() < 2 {
@@ -1320,14 +1320,18 @@ impl Compiler {
                         self.subscript_n_or_side(&sub, Each.format())
                             .map(|n| (n, sub.span))
                     })
-                    .filter(|&(n, _)| n != 0)
+                    .filter(|&(n, _)| !matches!(n, SubNOrSide::N(NOrInfinity::N(0))))
                 {
-                    if nos == SubNOrSide::N(-1) {
+                    if nos == SubNOrSide::N(NOrInfinity::N(-1)) {
                         Node::Mod(Rows, eco_vec![sn], span)
                     } else {
                         match nos {
-                            SubNOrSide::N(n) => {
+                            SubNOrSide::N(NOrInfinity::N(n)) => {
                                 Node::ImplMod(ImplPrimitive::EachSub(n), eco_vec![sn], span)
+                            }
+                            SubNOrSide::N(NOrInfinity::Inf) => Node::from(sn.node),
+                            SubNOrSide::N(NOrInfinity::NegInf) => {
+                                Node::Mod(Each, eco_vec![sn], span)
                             }
                             SubNOrSide::Side(side) => {
                                 self.experimental_error_it(&nos_span, || {
@@ -1369,16 +1373,22 @@ impl Compiler {
                 };
                 let sub = self.validate_subscript(sub);
                 let sub_span = sub.span;
-                let mut sub = sub.value;
-                if let Some(n) = &mut sub.num {
+                let sub = sub.value.map_num(|n| {
+                    let n = match n {
+                        NOrInfinity::N(n) => n,
+                        NOrInfinity::Inf => 1000,
+                        NOrInfinity::NegInf => -1000,
+                    };
                     if n.abs() > 10 {
                         self.add_error(
                             sub_span.clone(),
                             format!("{} max subscript magnitude is 10", prim.format()),
                         );
-                        *n = n.signum() * 10;
+                        n.signum() * 10
+                    } else {
+                        n
                     }
-                }
+                });
                 if let Some(side) = sub.side {
                     if let Some(n) = side.n {
                         if n >= sn.sig.args() {
@@ -2095,17 +2105,20 @@ impl Compiler {
         }
         let dims = if let Some(sub) = subscript {
             let sub = self.validate_subscript(sub);
-            let dims = sub.value.num.map(|n| {
-                let mut n = self.positive_subscript(n, Primitive::Geometric, &sub.span);
-                const MAX_DIMS: usize = ga::MAX_DIMS as usize;
-                if n > MAX_DIMS {
-                    self.add_error(
-                        sub.span.clone(),
-                        format!("Max geometric algebra dimensions is currently {MAX_DIMS}"),
-                    );
-                    n = MAX_DIMS;
+            let dims = sub.value.num.and_then(|n| match n {
+                NOrInfinity::N(n) => {
+                    let mut n = self.positive_subscript(n, Primitive::Geometric, &sub.span);
+                    const MAX_DIMS: usize = ga::MAX_DIMS as usize;
+                    if n > MAX_DIMS {
+                        self.add_error(
+                            sub.span.clone(),
+                            format!("Max geometric algebra dimensions is currently {MAX_DIMS}"),
+                        );
+                        n = MAX_DIMS;
+                    }
+                    Some(n as u8)
                 }
-                n as u8
+                _ => None,
             });
             if sub.value.side.is_some() {
                 self.add_error(

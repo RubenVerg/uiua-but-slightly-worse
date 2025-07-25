@@ -43,6 +43,8 @@ pub enum NumericSubscript {
     NegOnly,
     /// The number is too large to be represented
     TooLarge(EcoString),
+    /// Infinity, with true indicating negative sign.
+    Infinity(bool),
     /// A valid number
     #[serde(untagged)]
     N(i32),
@@ -125,6 +127,8 @@ impl fmt::Display for NumericSubscript {
                 }
                 Ok(())
             }
+            NumericSubscript::Infinity(false) => write!(f, "ₒₒ"),
+            NumericSubscript::Infinity(true) => write!(f, "₋ₒₒ"),
             NumericSubscript::TooLarge(s) => s.fmt(f),
         }
     }

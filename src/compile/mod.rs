@@ -2340,6 +2340,7 @@ impl Compiler {
                     }
                     Identity => {
                         let mut node = Node::empty().sig_node().unwrap();
+                        let n = self.finite_subscript(n, 0, prim, &span);
                         if n == 0 {
                             node.into()
                         } else {
@@ -2352,8 +2353,12 @@ impl Compiler {
                             node.into()
                         }
                     }
-                    Deshape => Node::ImplPrim(ImplPrimitive::DeshapeSub(n), self.add_span(span)),
+                    Deshape => Node::ImplPrim(
+                        ImplPrimitive::DeshapeSub(self.finite_subscript(n, 0, prim, &span)),
+                        self.add_span(span),
+                    ),
                     Transpose => {
+                        let n = self.finite_subscript(n, 1, prim, &span);
                         self.subscript_experimental(prim, &span);
                         if n > 100 {
                             self.add_error(span.clone(), "Too many subscript repetitions");
@@ -2364,28 +2369,30 @@ impl Compiler {
                     }
                     Neg => {
                         use crate::Complex;
-                        let rotation = match n {
+                        let rotation = match self.finite_subscript(n, 2, prim, &span) {
                             // Ensure that common cases are exact
                             -1..=1 => Complex::ONE,
                             2 | -2 => -Complex::ONE,
                             4 => Complex::I,
                             -4 => -Complex::I,
-                            _ => Complex::from_polar(1.0, std::f64::consts::TAU / n as f64),
+                            n => Complex::from_polar(1.0, std::f64::consts::TAU / n as f64),
                         };
                         Node::from_iter([Node::new_push(rotation), self.primitive(Mul, span)])
                     }
                     Sqrt => {
+                        let n = self.finite_subscript(n, 2, prim, &span);
                         if n == 0 {
                             self.add_error(span.clone(), "Cannot take 0th root");
                         }
                         Node::from_iter([Node::new_push(1.0 / n as f64), self.primitive(Pow, span)])
                     }
                     Exp => Node::from_iter([
-                        Node::new_push(n as f64),
+                        Node::new_push(f64::from(n)),
                         self.primitive(Flip, span.clone()),
                         self.primitive(Pow, span),
                     ]),
                     Floor | Ceil => {
+                        let n = self.finite_subscript(n, 0, prim, &span);
                         self.subscript_experimental(prim, &span);
                         let mul = 10f64.powi(n);
                         Node::from_iter([
@@ -2397,6 +2404,7 @@ impl Compiler {
                         ])
                     }
                     Round => {
+                        let n = self.finite_subscript(n, 0, prim, &span);
                         let mul = 10f64.powi(n);
                         Node::from_iter([
                             Node::new_push(mul),
@@ -2412,7 +2420,7 @@ impl Compiler {
                         self.primitive(Mul, span.clone()),
                         self.primitive(Floor, span),
                     ]),
-                    Utf8 => match n {
+                    Utf8 => match self.finite_subscript(n, 8, prim, &span) {
                         8 => self.primitive(Utf8, span),
                         16 => Node::ImplPrim(ImplPrimitive::Utf16, self.add_span(span)),
                         _ => {
@@ -2420,7 +2428,7 @@ impl Compiler {
                             self.primitive(Utf8, span)
                         }
                     },
-                    Couple => match n {
+                    Couple => match self.finite_subscript(n, 2, prim, &span) {
                         1 => self.primitive(Fix, span),
                         2 => self.primitive(Couple, span),
                         n => Node::Array {
@@ -2432,7 +2440,7 @@ impl Compiler {
                             span: self.add_span(span),
                         },
                     },
-                    Join => match self.positive_subscript(n, Join, &span) {
+                    Join => match self.finite_and_positive_subscript(n, 2, Join, &span) {
                         0 => Node::new_push(Value::default()),
                         1 => Node::Prim(Identity, self.add_span(span)),
                         n => {
@@ -2440,7 +2448,7 @@ impl Compiler {
                         }
                     },
                     Box => Node::Array {
-                        len: self.positive_subscript(n, Box, &span),
+                        len: self.finite_and_positive_subscript(n, 2, Box, &span),
                         inner: Node::empty().into(),
                         boxed: true,
                         allow_ext: false,
@@ -2448,6 +2456,7 @@ impl Compiler {
                         span: self.add_span(span),
                     },
                     Parse => {
+                        let n = self.finite_subscript(n, 10, prim, &span);
                         if !matches!(n, 1..=36 | 64) {
                             self.add_error(span.clone(), format!("Cannot parse base {n}"));
                         }
@@ -2455,13 +2464,13 @@ impl Compiler {
                     }
                     Stack => Node::ImplPrim(
                         ImplPrimitive::StackN {
-                            n: self.positive_subscript(n, Stack, &span),
+                            n: self.finite_and_positive_subscript(n, 1, Stack, &span),
                             inverse: false,
                         },
                         self.add_span(span),
                     ),
                     First | Last => {
-                        let n = self.positive_subscript(n, prim, &span);
+                        let n = self.finite_and_positive_subscript(n, 1, prim, &span);
                         let span = self.add_span(span);
                         match n {
                             0 => Node::Prim(Pop, span),
@@ -2491,11 +2500,17 @@ impl Compiler {
                             ]),
                         }
                     }
-                    Bits => {
-                        let n = self.positive_subscript(n, Bits, &span);
-                        let span = self.add_span(span);
-                        Node::ImplPrim(ImplPrimitive::NBits(n), span)
-                    }
+                    Bits => match n {
+                        NOrInfinity::N(n) => {
+                            let n = self.positive_subscript(n, Bits, &span);
+                            let span = self.add_span(span);
+                            Node::ImplPrim(ImplPrimitive::NBits(n), span)
+                        }
+                        _ => {
+                            self.finite_subscript(n, 0, prim, &span);
+                            Node::Prim(Bits, self.add_span(span))
+                        }
+                    },
                     Len => {
                         let span = self.add_span(span);
                         Node::from_iter([
@@ -2521,9 +2536,20 @@ impl Compiler {
                         ])
                     }
                     Keep => {
-                        let n = self.positive_subscript(n, Keep, &span);
-                        let span = self.add_span(span);
-                        Node::ImplPrim(ImplPrimitive::MultiKeep(n), span)
+                        match n {
+                            NOrInfinity::N(n) => {
+                                let n = self.positive_subscript(n, Keep, &span);
+                                let span = self.add_span(span);
+                                Node::ImplPrim(ImplPrimitive::MultiKeep(n), span)
+                            }
+                            NOrInfinity::Inf => {
+                                Node::ImplPrim(ImplPrimitive::AllKeep, self.add_span(span))
+                            }
+                            _ => {
+                                self.add_error(span.clone(), format!("Subscript for {} must be positive (and potentially infinite)", Keep));
+                                Node::Prim(Keep, self.add_span(span))
+                            }
+                        }
                     }
                     _ => {
                         self.add_error(
@@ -2539,7 +2565,30 @@ impl Compiler {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SubNOrSide<N = i32> {
+enum NOrInfinity<N = i32> {
+    N(N),
+    Inf,
+    NegInf,
+}
+
+impl From<NOrInfinity> for f64 {
+    fn from(value: NOrInfinity) -> Self {
+        match value {
+            NOrInfinity::N(n) => n as f64,
+            NOrInfinity::Inf => f64::INFINITY,
+            NOrInfinity::NegInf => f64::NEG_INFINITY,
+        }
+    }
+}
+
+impl From<NOrInfinity> for Value {
+    fn from(value: NOrInfinity) -> Self {
+        Value::from(f64::from(value))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SubNOrSide<N = NOrInfinity> {
     N(N),
     Side(SubSide),
 }
@@ -2554,7 +2603,7 @@ impl<N: PartialEq> PartialEq<N> for SubNOrSide<N> {
 }
 
 impl Compiler {
-    fn validate_subscript(&mut self, sub: Sp<Subscript>) -> Sp<Subscript<i32>> {
+    fn validate_subscript(&mut self, sub: Sp<Subscript>) -> Sp<Subscript<NOrInfinity>> {
         let side = sub.value.side;
         let num = (sub.value.num.as_ref()).and_then(|num| self.numeric_subscript_n(num, &sub.span));
         if num.is_none() && side.is_none() {
@@ -2562,9 +2611,15 @@ impl Compiler {
         }
         sub.span.sp(Subscript { num, side })
     }
-    fn numeric_subscript_n(&mut self, num: &NumericSubscript, span: &CodeSpan) -> Option<i32> {
+    fn numeric_subscript_n(
+        &mut self,
+        num: &NumericSubscript,
+        span: &CodeSpan,
+    ) -> Option<NOrInfinity> {
         match num {
-            NumericSubscript::N(n) => Some(*n),
+            NumericSubscript::N(n) => Some(NOrInfinity::N(*n)),
+            NumericSubscript::Infinity(false) => Some(NOrInfinity::Inf),
+            NumericSubscript::Infinity(true) => Some(NOrInfinity::NegInf),
             NumericSubscript::NegOnly => {
                 self.add_error(span.clone(), "Subscript is incomplete");
                 None
@@ -2608,7 +2663,7 @@ impl Compiler {
         &mut self,
         sub: &Sp<Subscript>,
         for_what: impl fmt::Display + Copy,
-    ) -> Option<i32> {
+    ) -> Option<NOrInfinity> {
         let nos = self.subscript_n_or_side(sub, for_what)?;
         match nos {
             SubNOrSide::N(n) => Some(n),
@@ -2646,6 +2701,45 @@ impl Compiler {
             );
         }
         n.unsigned_abs() as usize
+    }
+    fn finite_subscript(
+        &mut self,
+        n: NOrInfinity,
+        def: i32,
+        prim: Primitive,
+        span: &CodeSpan,
+    ) -> i32 {
+        match n {
+            NOrInfinity::N(n) => n,
+            _ => {
+                self.add_error(
+                    span.clone(),
+                    format!("Subscript for {} must be finite", prim.format()),
+                );
+                def
+            }
+        }
+    }
+    fn finite_and_positive_subscript(
+        &mut self,
+        n: NOrInfinity,
+        def: usize,
+        prim: Primitive,
+        span: &CodeSpan,
+    ) -> usize {
+        match n {
+            NOrInfinity::N(n) => self.positive_subscript(n, prim, span),
+            _ => {
+                self.add_error(
+                    span.clone(),
+                    format!(
+                        "Subscript for {} must be finite and positive",
+                        prim.format()
+                    ),
+                );
+                def
+            }
+        }
     }
     fn subscript_experimental(&mut self, prim: Primitive, span: &CodeSpan) {
         self.experimental_error(span, || {

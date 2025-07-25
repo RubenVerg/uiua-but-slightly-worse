@@ -1062,6 +1062,12 @@ impl<'a> Lexer<'a> {
                         self.end(Underscore, start)
                     }
                 }
+                "ₒ" => {
+                    if self.next_char_exact("ₒ") {
+                        let sub = self.subscript("ₒₒ");
+                        self.end(Subscr(sub), start)
+                    }
+                }
                 "," => {
                     let sub = self.subscript(",");
                     self.end(Subscr(sub), start)
@@ -1448,6 +1454,7 @@ impl<'a> Lexer<'a> {
         &mut self,
         can_parse_ascii: &mut bool,
         got_neg: &mut bool,
+        got_inf: &mut bool,
         too_large: &mut bool,
         s: &mut EcoString,
         num: &mut Option<i32>,
@@ -1460,31 +1467,40 @@ impl<'a> Lexer<'a> {
             {
                 *got_neg = true;
                 s.push('¯');
-            } else if let Some(c) = can_parse_ascii
-                .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
-                .flatten()
+            } else if !*got_inf
+                && num.is_none()
+                && (self.next_chars_exact(["ₒ", "ₒ"])
+                    || *can_parse_ascii && self.next_chars_exact(["i", "n", "f"]))
             {
-                let num = num.get_or_insert(0);
-                let (new_num, overflow) = num.overflowing_mul(10);
-                *too_large |= overflow;
-                let n = c.parse::<i32>().unwrap();
-                let (new_num, overflow) = new_num.overflowing_add(n);
-                *too_large |= overflow;
-                *num = new_num;
-                s.push(char::from_u32('₀' as u32 + n as u32).unwrap());
-            } else if let Some(c) = self.next_char_if_all(|c| SUBSCRIPT_DIGITS.contains(&c)) {
-                let i = SUBSCRIPT_DIGITS
-                    .iter()
-                    .position(|&d| d == c.chars().next().unwrap())
-                    .unwrap() as i32;
-                let num = num.get_or_insert(0);
-                let (new_num, overflow) = num.overflowing_mul(10);
-                *too_large |= overflow;
-                let (new_num, overflow) = new_num.overflowing_add(i);
-                *too_large |= overflow;
-                *num = new_num;
-                *can_parse_ascii = false;
-                s.push_str(c);
+                *got_inf = true;
+                s.push('∞');
+            } else if !*got_inf {
+                if let Some(c) = can_parse_ascii
+                    .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
+                    .flatten()
+                {
+                    let num = num.get_or_insert(0);
+                    let (new_num, overflow) = num.overflowing_mul(10);
+                    *too_large |= overflow;
+                    let n = c.parse::<i32>().unwrap();
+                    let (new_num, overflow) = new_num.overflowing_add(n);
+                    *too_large |= overflow;
+                    *num = new_num;
+                    s.push(char::from_u32('₀' as u32 + n as u32).unwrap());
+                } else if let Some(c) = self.next_char_if_all(|c| SUBSCRIPT_DIGITS.contains(&c)) {
+                    let i = SUBSCRIPT_DIGITS
+                        .iter()
+                        .position(|&d| d == c.chars().next().unwrap())
+                        .unwrap() as i32;
+                    let num = num.get_or_insert(0);
+                    let (new_num, overflow) = num.overflowing_mul(10);
+                    *too_large |= overflow;
+                    let (new_num, overflow) = new_num.overflowing_add(i);
+                    *too_large |= overflow;
+                    *num = new_num;
+                    *can_parse_ascii = false;
+                    s.push_str(c);
+                }
             } else if self.next_chars_exact(["_"; 2]) || self.next_char_exact(",") {
                 *can_parse_ascii = true;
             } else {
@@ -1494,6 +1510,7 @@ impl<'a> Lexer<'a> {
     }
     fn subscript(&mut self, init: &str) -> Subscript {
         let mut got_neg = false;
+        let mut got_inf = false;
         let mut too_large = false;
         let mut can_parse_ascii = false;
         let mut num = None;
@@ -1504,6 +1521,7 @@ impl<'a> Lexer<'a> {
             "⌞" => side = Some(SubSide::Left),
             "⌟" => side = Some(SubSide::Right),
             "₋" => got_neg = true,
+            "ₒₒ" => got_inf = true,
             "__" | "," => can_parse_ascii = true,
             c if c.chars().all(|c| SUBSCRIPT_DIGITS.contains(&c)) => {
                 let n = (SUBSCRIPT_DIGITS.iter())
@@ -1520,6 +1538,7 @@ impl<'a> Lexer<'a> {
             self.sub_num(
                 &mut can_parse_ascii,
                 &mut got_neg,
+                &mut got_inf,
                 &mut too_large,
                 &mut n_str,
                 &mut num,
@@ -1543,6 +1562,7 @@ impl<'a> Lexer<'a> {
             self.sub_num(
                 &mut can_parse_ascii,
                 &mut true,
+                &mut true,
                 &mut too_large,
                 &mut EcoString::new(),
                 &mut side_num,
@@ -1559,6 +1579,8 @@ impl<'a> Lexer<'a> {
                     n = -n;
                 }
                 Some(NumericSubscript::N(n))
+            } else if got_inf {
+                Some(NumericSubscript::Infinity(got_neg))
             } else if got_neg {
                 Some(NumericSubscript::NegOnly)
             } else {
@@ -1761,7 +1783,7 @@ fn parse_format_fragments(s: &str) -> Vec<String> {
 
 /// Whether a character can be among the first characters of a Uiua identifier
 pub fn is_ident_char(c: char) -> bool {
-    c.is_alphabetic() && !"ⁿₙₑℂ".contains(c)
+    c.is_alphabetic() && !"ⁿₙₑₒℂ".contains(c)
 }
 
 /// Whether a string is a custom glyph

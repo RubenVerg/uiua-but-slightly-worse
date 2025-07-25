@@ -3,6 +3,7 @@
 use std::fmt;
 
 use serde::*;
+use uiua_parser::NumericSubscript;
 
 use crate::{algorithm::ga, Primitive, Purity, SubSide, Subscript, SysOp, SUBSCRIPT_DIGITS};
 
@@ -238,6 +239,7 @@ impl_primitive!(
     (1, ParseSub(usize)),
     (1, TransposeN(i32)),
     (2, MultiKeep(usize)),
+    (2, AllKeep),
     (1, Utf16),
     (1, Retropose),
     ([2], RepeatWithInverse),
@@ -478,6 +480,14 @@ impl fmt::Display for ImplPrimitive {
                 write!(f, "{Keep}")?;
                 fmt_subscript(f, n as i32)
             }
+            AllKeep => write!(
+                f,
+                "{Keep}{}",
+                Subscript {
+                    num: Some(NumericSubscript::Infinity(false)),
+                    ..Default::default()
+                }
+            ),
         }
     }
 }
