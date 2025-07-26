@@ -1474,6 +1474,7 @@ impl<'a> Lexer<'a> {
             {
                 *got_inf = true;
                 s.push('∞');
+                break;
             } else if !*got_inf {
                 if let Some(c) = can_parse_ascii
                     .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
