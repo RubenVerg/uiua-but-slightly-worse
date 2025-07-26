@@ -1562,7 +1562,7 @@ impl<'a> Lexer<'a> {
             self.sub_num(
                 &mut can_parse_ascii,
                 &mut true,
-                &mut true,
+                &mut false,
                 &mut too_large,
                 &mut EcoString::new(),
                 &mut side_num,
