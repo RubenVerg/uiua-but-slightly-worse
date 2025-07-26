@@ -1475,33 +1475,31 @@ impl<'a> Lexer<'a> {
                 *got_inf = true;
                 s.push('∞');
                 break;
-            } else if !*got_inf {
-                if let Some(c) = can_parse_ascii
-                    .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
-                    .flatten()
-                {
-                    let num = num.get_or_insert(0);
-                    let (new_num, overflow) = num.overflowing_mul(10);
-                    *too_large |= overflow;
-                    let n = c.parse::<i32>().unwrap();
-                    let (new_num, overflow) = new_num.overflowing_add(n);
-                    *too_large |= overflow;
-                    *num = new_num;
-                    s.push(char::from_u32('₀' as u32 + n as u32).unwrap());
-                } else if let Some(c) = self.next_char_if_all(|c| SUBSCRIPT_DIGITS.contains(&c)) {
-                    let i = SUBSCRIPT_DIGITS
-                        .iter()
-                        .position(|&d| d == c.chars().next().unwrap())
-                        .unwrap() as i32;
-                    let num = num.get_or_insert(0);
-                    let (new_num, overflow) = num.overflowing_mul(10);
-                    *too_large |= overflow;
-                    let (new_num, overflow) = new_num.overflowing_add(i);
-                    *too_large |= overflow;
-                    *num = new_num;
-                    *can_parse_ascii = false;
-                    s.push_str(c);
-                }
+            } else if let Some(c) = can_parse_ascii
+                .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
+                .flatten()
+            {
+                let num = num.get_or_insert(0);
+                let (new_num, overflow) = num.overflowing_mul(10);
+                *too_large |= overflow;
+                let n = c.parse::<i32>().unwrap();
+                let (new_num, overflow) = new_num.overflowing_add(n);
+                *too_large |= overflow;
+                *num = new_num;
+                s.push(char::from_u32('₀' as u32 + n as u32).unwrap());
+            } else if let Some(c) = self.next_char_if_all(|c| SUBSCRIPT_DIGITS.contains(&c)) {
+                let i = SUBSCRIPT_DIGITS
+                    .iter()
+                    .position(|&d| d == c.chars().next().unwrap())
+                    .unwrap() as i32;
+                let num = num.get_or_insert(0);
+                let (new_num, overflow) = num.overflowing_mul(10);
+                *too_large |= overflow;
+                let (new_num, overflow) = new_num.overflowing_add(i);
+                *too_large |= overflow;
+                *num = new_num;
+                *can_parse_ascii = false;
+                s.push_str(c);
             } else if self.next_chars_exact(["_"; 2]) || self.next_char_exact(",") {
                 *can_parse_ascii = true;
             } else {
@@ -1563,7 +1561,7 @@ impl<'a> Lexer<'a> {
             self.sub_num(
                 &mut can_parse_ascii,
                 &mut true,
-                &mut false,
+                &mut true,
                 &mut too_large,
                 &mut EcoString::new(),
                 &mut side_num,
