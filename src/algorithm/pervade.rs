@@ -8,7 +8,10 @@ use std::{
 use ecow::eco_vec;
 
 use crate::fill::FillValue;
-use crate::{algorithm::loops::flip, algorithm::EcoString, array::*, SigNode, Uiua, UiuaError, UiuaResult, Value};
+use crate::{
+    algorithm::loops::flip, algorithm::EcoString, array::*, SigNode, Uiua, UiuaError, UiuaResult,
+    Value,
+};
 use crate::{Complex, Lambda, Shape, SUBSCRIPT_DIGITS};
 
 use super::{multi_output, FillContext, MultiOutput};
