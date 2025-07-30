@@ -167,6 +167,7 @@ pub fn Site() -> impl IntoView {
                     <Route path="docs/:page?" view=Docs/>
                     <Route path="isms/:search?" view=Uiuisms/>
                     <Route path="pad" view=PadPage/>
+                    <Route path="pad/" view=PadPage/>
                     <Route path="install" view=Install/>
                     <Route path="tour" view=Tour/>
                     <Route path="isms" view=Uiuisms/>
