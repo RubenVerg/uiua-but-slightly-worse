@@ -151,11 +151,11 @@ impl fmt::Display for HandleKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::File(path) => write!(f, "file {}", path.display()),
-            Self::TcpListener(addr) => write!(f, "tcp listener {}", addr),
-            Self::TlsListener(addr) => write!(f, "tls listener {}", addr),
-            Self::TcpSocket(addr) => write!(f, "tcp socket {}", addr),
-            Self::TlsSocket(addr) => write!(f, "tls socket {}", addr),
-            Self::UdpSocket(addr) => write!(f, "udp socket {}", addr),
+            Self::TcpListener(addr) => write!(f, "tcp listener {addr}"),
+            Self::TlsListener(addr) => write!(f, "tls listener {addr}"),
+            Self::TcpSocket(addr) => write!(f, "tcp socket {addr}"),
+            Self::TlsSocket(addr) => write!(f, "tls socket {addr}"),
+            Self::UdpSocket(addr) => write!(f, "udp socket {addr}"),
             Self::ChildStdin(com) => write!(f, "stdin {com}"),
             Self::ChildStdout(com) => write!(f, "stdout {com}"),
             Self::ChildStderr(com) => write!(f, "stderr {com}"),
@@ -483,6 +483,10 @@ pub trait SysBackend: Any + Send + Sync + 'static {
     /// Change the current directory
     fn change_directory(&self, path: &str) -> Result<(), String> {
         Err("Changing directories is not supported in this environment".into())
+    }
+    /// Get the current directory
+    fn get_current_directory(&self) -> Result<String, String> {
+        Err("Getting the current directory is not supported in this environment".into())
     }
     /// Capture an image from the webcam
     fn webcam_capture(&self, index: usize) -> Result<WebcamImage, String> {

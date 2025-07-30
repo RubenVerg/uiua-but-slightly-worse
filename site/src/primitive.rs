@@ -214,6 +214,7 @@ fn all_uns() -> impl IntoView {
             { inverse_row([Identity], No, "Self inverse", "°∘ 5") }
             { inverse_row([Neg], No, "Self inverse", "°¯ 5") }
             { inverse_row([Not], No, "Self inverse", "°¬ 5") }
+            { inverse_row([Reciprocal], No, "Self inverse", "# Experimental!\n°⨪ 5") }
             { inverse_row([Sqrt], No, "", "°√ 5") }
             { inverse_row([Sin], No, "Arcsine", "°∿ 1") }
             { inverse_row([Add], Required, "", "°(+1) 5") }
@@ -279,6 +280,7 @@ fn all_uns() -> impl IntoView {
             { inverse_row([ImageEncode], Optional, "Decodes bytes", None) }
             { inverse_row([GifEncode], Optional, "Decodes bytes", None) }
             { inverse_row([Sys(Clip)], No, "Set the clipboard", None) }
+            { inverse_row([Sys(ChangeDirectory)], No, "Get the current directory", None) }
             { inverse_row([Sys(RawMode)], No, "Terminal raw state", None) }
         </table>
     }
@@ -309,7 +311,7 @@ fn all_unders() -> impl IntoView {
             { inverse_row([Sub], Optional, view!("Optional "<Prim prim=Backward/>), "⍜-(×2) 1 5") }
             { inverse_row([Mul], Optional, view!("Optional "<Prim prim=Backward/>), "⍜×(+1) 2 5") }
             { inverse_row([Div], Optional, view!("Optional "<Prim prim=Backward/>), "⍜÷(+1) 2 5") }
-            { inverse_row([Modulus], Optional, view!("Optional "<Prim prim=Backward/>), "⍜◿(×10) 4 9") }
+            { inverse_row([Modulo], Optional, view!("Optional "<Prim prim=Backward/>), "⍜◿(×10) 4 9") }
             { inverse_row([Pow], Optional, view!("Optional "<Prim prim=Backward/>), "⍜ⁿ(-9) 2 5") }
             { inverse_row([Exp], No, "", "⍜ₑ(ⁿ2) 7") }
             { inverse_row([Get], Optional, "", "⍜get(×10) @b map \"abc\" 1_2_3") }
@@ -359,6 +361,7 @@ fn all_unders() -> impl IntoView {
             { inverse_row([Sys(TcpAccept)], Optional, view!("Calls "<Prim prim=Sys(Close)/>" on handle"), None) }
             { inverse_row([Sys(FReadAllStr)], Optional, view!("Calls "<Prim prim=Sys(FWriteAll)/>), None) }
             { inverse_row([Sys(FReadAllBytes)], Optional, view!("Calls "<Prim prim=Sys(FWriteAll)/>), None) }
+            { inverse_row([Sys(ChangeDirectory)], Optional, "Returns to original directory", None) }
             { inverse_row([Sys(RawMode)], Optional, "Resets raw state", None) }
         </table>
     }

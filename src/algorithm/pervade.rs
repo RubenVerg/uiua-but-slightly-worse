@@ -8,7 +8,7 @@ use std::{
 use ecow::eco_vec;
 
 use crate::fill::FillValue;
-use crate::{algorithm::loops::flip, array::*, SigNode, Uiua, UiuaError, UiuaResult, Value};
+use crate::{algorithm::loops::flip, algorithm::EcoString, array::*, SigNode, Uiua, UiuaError, UiuaResult, Value};
 use crate::{Complex, Lambda, Shape, SUBSCRIPT_DIGITS};
 
 use super::{multi_output, FillContext, MultiOutput};
@@ -893,7 +893,7 @@ pub mod scalar_recip {
         1.0 / a
     }
     pub fn error<T: Display>(a: T, env: &Uiua) -> UiuaError {
-        env.error(format!("Cannot take the reciprocal {a}"))
+        env.error(format!("Cannot get the reciprocal of {a}"))
     }
 }
 pub mod scalar_abs {
@@ -1500,9 +1500,7 @@ pub mod div {
     }
 }
 
-pub mod modulus {
-    use ecow::EcoString;
-
+pub mod modulo {
     use super::*;
     pub fn num_num(a: f64, b: f64) -> f64 {
         b.rem_euclid(a).abs()

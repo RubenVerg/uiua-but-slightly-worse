@@ -413,8 +413,8 @@ fn adjacent_impl(f: SigNode, xs: Value, n: usize, env: &mut Uiua) -> UiuaResult 
             Primitive::Mul => fast_adjacent(nums, n, env, mul::num_num),
             Primitive::Div if flipped => fast_adjacent(nums, n, env, flip(div::num_num)),
             Primitive::Div => fast_adjacent(nums, n, env, div::num_num),
-            Primitive::Modulus if flipped => fast_adjacent(nums, n, env, flip(modulus::num_num)),
-            Primitive::Modulus => fast_adjacent(nums, n, env, modulus::num_num),
+            Primitive::Modulo if flipped => fast_adjacent(nums, n, env, flip(modulo::num_num)),
+            Primitive::Modulo => fast_adjacent(nums, n, env, modulo::num_num),
             Primitive::GCD => fast_adjacent(nums, n, env, or::num_num),
             Primitive::LCM => fast_adjacent(nums, n, env, and::num_num),
             Primitive::Atan if flipped => fast_adjacent(nums, n, env, flip(atan2::num_num)),
@@ -436,10 +436,10 @@ fn adjacent_impl(f: SigNode, xs: Value, n: usize, env: &mut Uiua) -> UiuaResult 
                 fast_adjacent(bytes.convert(), n, env, flip(div::num_num))?.into()
             }
             Primitive::Div => fast_adjacent(bytes.convert(), n, env, div::num_num)?.into(),
-            Primitive::Modulus if flipped => {
-                fast_adjacent(bytes.convert(), n, env, flip(modulus::num_num))?.into()
+            Primitive::Modulo if flipped => {
+                fast_adjacent(bytes.convert(), n, env, flip(modulo::num_num))?.into()
             }
-            Primitive::Modulus => fast_adjacent(bytes.convert(), n, env, modulus::num_num)?.into(),
+            Primitive::Modulo => fast_adjacent(bytes.convert(), n, env, modulo::num_num)?.into(),
             Primitive::Atan if flipped => {
                 fast_adjacent(bytes.convert(), n, env, flip(atan2::num_num))?.into()
             }

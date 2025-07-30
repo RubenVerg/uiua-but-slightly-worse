@@ -190,10 +190,6 @@ primitive!(
         MonadicPervasive,
         ("negate", AsciiToken::Backtick, '¯')
     ),
-    /// Take the reciprocal of a number
-    ///
-    /// ex: ⨪ 5
-    (1, Recip, MonadicPervasive, ("reciprocal", '⨪')),
     /// Get the absolute value of a number
     ///
     /// ex: ⌵ ¯1
@@ -206,6 +202,15 @@ primitive!(
     ///
     /// The glyph looks like the graph of `|x|`.
     (1, Abs, MonadicPervasive, ("absolute value", '⌵')),
+    /// Get the reciprocal of a number
+    ///
+    /// ex: # Experimental!
+    ///   : ⨪3
+    /// ex: # Experimental!
+    ///   : ⨪[1 2 3 6]
+    /// ex: # Experimental!
+    ///   : ⨪ℂ2 1
+    (1, Reciprocal, MonadicPervasive, ("reciprocal", '⨪'), { experimental: true }),
     /// Take the square root of a number
     ///
     /// ex: √4
@@ -423,7 +428,7 @@ primitive!(
     /// ex: ◿ 4 ¯21
     /// If you prefer the negative modulo instead of the remainder, you may use [under]:
     /// ex: ⍜⊙⌵◿ 4 ¯21
-    (2, Modulus, DyadicPervasive, ("modulus", '◿')),
+    (2, Modulo, DyadicPervasive, ("modulo", '◿')),
     /// Greatest common divisor
     ///
     /// ex: ∨ 16 24
@@ -2163,7 +2168,7 @@ primitive!(
     ///
     /// If only a single function is provided, its inverse will be nothing.
     /// This is useful when a function has to do some setup before the main [under]able part.
-    /// Consider this function which [keep]s only odd numbers. While [keep] is compatible with [under], `by``modulus``2` is not.
+    /// Consider this function which [keep]s only odd numbers. While [keep] is compatible with [under], `by``modulo``2` is not.
     /// ex! F ← ▽⊸◿2
     ///   : F [1 2 3 4 5]
     ///   : ⍜F(×10) [1 2 3 4 5]
@@ -3729,6 +3734,9 @@ sys_op! {
     /// [under][&runs] calls [&cl] on all 3 streams automatically.
     (1(3), RunStream, Command, "&runs", "run command stream", Mutating),
     /// Change the current directory
+    ///
+    /// [un][&cd] will output the current working directory.
+    /// [under][&cd] will return to the original directory afterward.
     (1(0), ChangeDirectory, Filesystem, "&cd", "change directory", Mutating),
     /// Get the contents of the clipboard
     ///
@@ -3945,8 +3953,9 @@ sys_op! {
     /// ex: Sp   ← 1.5
     ///   : Mod  ← ∿×π× # Modulate ? Freq Time
     ///   : Note ← +110×20⌊÷4◿8
-    ///   : Bass ← ×0.2Mod×⟜(
-    ///   :   ×2+1⌊◿2      # Volume modulation freq
+    ///   : Bass ← ⟜(
+    ///   :   ×0.2Mod×
+    ///   : | ×2+1⌊◿2      # Volume modulation freq
     ///   : | ±Mod÷Sp⟜Note # Note
     ///   : )
     ///   : Kick  ← Mod80√√◿1
@@ -3954,7 +3963,7 @@ sys_op! {
     ///   : Noisy ← ×⊸(↯△⊙Noise)
     ///   : Hit   ← Noisy /≠⊞<0.5_0.6 ÷⟜◿2
     ///   : Hat   ← ×0.3 Noisy <0.1 ÷⟜◿0.25
-    ///   : &ast(÷3/+[⊃(Hat|Kick|Hit|Bass)]×Sp)
+    ///   : &ast(÷3/+⊃[Hat|Kick|Hit|Bass]×Sp)
     /// On the web, this will simply use the function to generate a fixed amount of audio.
     /// How long the audio is can be configured in the editor settings.
     (0(0)[1], AudioStream, Media, "&ast", "audio - stream", Mutating),

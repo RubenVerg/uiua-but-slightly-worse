@@ -79,10 +79,10 @@ pub fn run_prim_func(prim: &Primitive, env: &mut Uiua) -> UiuaResult {
         Primitive::Identity => env.touch_stack(1)?,
         Primitive::Not => env.monadic_env(Value::not)?,
         Primitive::Neg => env.monadic_env(Value::neg)?,
-        Primitive::Recip => env.monadic_env(Value::recip)?,
         Primitive::Abs => env.monadic_env(Value::abs)?,
         Primitive::Sign => env.monadic_env(Value::sign)?,
         Primitive::Sqrt => env.monadic_env(Value::sqrt)?,
+        Primitive::Reciprocal => env.monadic_env(Value::recip)?,
         Primitive::Exp => env.monadic_env(Value::exp)?,
         Primitive::Sin => env.monadic_env(Value::sin)?,
         Primitive::Floor => env.monadic_env(Value::floor)?,
@@ -98,7 +98,7 @@ pub fn run_prim_func(prim: &Primitive, env: &mut Uiua) -> UiuaResult {
         Primitive::Sub => env.dyadic_oo_env(Value::sub)?,
         Primitive::Mul => env.dyadic_oo_env(Value::mul)?,
         Primitive::Div => env.dyadic_oo_env(Value::div)?,
-        Primitive::Modulus => env.dyadic_oo_env(Value::modulus)?,
+        Primitive::Modulo => env.dyadic_oo_env(Value::modulo)?,
         Primitive::GCD => env.dyadic_oo_env(Value::or)?,
         Primitive::LCM => env.dyadic_oo_env(Value::and)?,
         Primitive::Pow => env.dyadic_oo_env(Value::pow)?,
@@ -756,6 +756,12 @@ impl ImplPrimitive {
             ImplPrimitive::UnRawMode => {
                 let raw_mode = env.rt.backend.get_raw_mode().map_err(|e| env.error(e))?;
                 env.push(raw_mode);
+            }
+            ImplPrimitive::UnChangeDirectory => {
+                let cur_dir = (env.rt.backend)
+                    .get_current_directory()
+                    .map_err(|e| env.error(e))?;
+                env.push(cur_dir);
             }
             ImplPrimitive::UnClip => {
                 let contents = env.pop(1)?.as_string(env, "Contents must be a string")?;
@@ -1580,7 +1586,7 @@ fn regex(env: &mut Uiua) -> UiuaResult {
             regex
         } else {
             let regex =
-                Regex::new(&pattern).map_err(|e| env.error(format!("Invalid pattern: {}", e)))?;
+                Regex::new(&pattern).map_err(|e| env.error(format!("Invalid pattern: {e}")))?;
             cache.entry(pattern.clone()).or_insert(regex.clone())
         };
 
@@ -2243,7 +2249,7 @@ mod tests {
                         start.push(c);
                         end.push_str(")?");
                     }
-                    format!("{}{}", start, end)
+                    format!("{start}{end}")
                 })
                 .collect();
             let format_names = format_names.join("|");
