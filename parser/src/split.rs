@@ -39,6 +39,7 @@ static ALIASES: Lazy<HashMap<Primitive, &[&str]>> = Lazy::new(|| {
         (Primitive::GCD, &["or"]),
         (Primitive::LCM, &["and"]),
         (Primitive::Drawkcab, &["kcab"]),
+        (Primitive::Rank, &["rnk"]),
     ]
     .into()
 });

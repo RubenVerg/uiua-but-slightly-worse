@@ -551,6 +551,12 @@ primitive!(
     ///
     /// It is a triangle`△` because a triangle is a shape.
     (1, Shape, MonadicArray, ("shape", '△')),
+    /// Get the number of dimensions of an array
+    ///
+    /// ex: ⧊5
+    /// ex: ⧊1_2_3
+    /// ex: ⧊[1_2_3 4_5_6]
+    (1, Rank, MonadicArray, ("rank", '⧊')),
     /// Make an array of all natural numbers less than a number
     ///
     /// The rank of the input must be `0` or `1`.

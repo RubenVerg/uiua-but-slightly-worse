@@ -2194,6 +2194,12 @@ impl Compiler {
                     Node::Prim(Primitive::Not, spandex),
                 ])
             }
+            Primitive::Rank => {
+                node = Node::from_iter([
+                    Node::Prim(Primitive::Shape, spandex),
+                    Node::Prim(Primitive::Len, spandex),
+                ])
+            }
             prim if prim.glyph().is_none() => self.forbid_arg_setters((prim.name(), &span)),
             _ => {}
         }
