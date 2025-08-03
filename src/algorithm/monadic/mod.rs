@@ -1512,6 +1512,9 @@ impl<T: ArrayValue> Array<T> {
                 }
                 self.data.truncate(new_len * row_len);
             }
+        } else if self.element_count() == 0 && self.row_count() > 0 {
+            self.shape[0] = 1;
+            return Ok(());
         } else {
             let mut seen = HashSet::new();
             let mut deduped = CowSlice::new();
@@ -1552,6 +1555,9 @@ impl<T: ArrayValue> Array<T> {
     }
     /// Count the number of unique rows in the array
     pub fn count_unique(&self) -> usize {
+        if self.element_count() == 0 && self.row_count() > 0 {
+            return 1;
+        }
         let mut seen = HashSet::new();
         self.row_slices()
             .filter(|row| seen.insert(ArrayCmpSlice(row)))

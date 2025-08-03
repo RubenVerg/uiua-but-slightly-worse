@@ -10,6 +10,12 @@ use pre_eval::PreEvalMode;
 
 const MAX_COMPTIME_DEPTH: usize = if cfg!(debug_assertions) { 5 } else { 20 };
 
+macro_rules! func {
+    ($expr:expr) => {
+        (|| -> UiuaResult<_> { Ok($expr) })()?
+    };
+}
+
 impl Compiler {
     fn desugar_function_pack(
         &mut self,
@@ -93,9 +99,7 @@ impl Compiler {
                 }
                 self.modified_impl(new, subscript)
             }
-            Modifier::Primitive(
-                Primitive::Fork | Primitive::Bracket | Primitive::Try | Primitive::Fill,
-            ) => {
+            Modifier::Primitive(Primitive::Fork | Primitive::Try | Primitive::Fill) => {
                 let mut branches = pack.lexical_order().cloned().rev();
                 let mut new = Modified {
                     modifier: modifier.clone(),
@@ -396,6 +400,7 @@ impl Compiler {
             }
         } else {
             let strict_args = match &modified.modifier.value {
+                Modifier::Primitive(Primitive::Bracket) => false,
                 Modifier::Primitive(_) => true,
                 Modifier::Macro(..) => false,
                 Modifier::Ref(name) => self
@@ -551,7 +556,7 @@ impl Compiler {
                     Node::Mod(By, eco_vec![sn], span)
                 }
             }
-            Reach => {
+            Reach => func!({
                 let (sn, _) = self.monadic_modifier_op(modified)?;
                 let span = self.add_span(modified.modifier.span.clone());
                 let mut node = sn.node;
@@ -576,7 +581,18 @@ impl Compiler {
                     ));
                 }
                 node
-            }
+            }),
+            Dip => func!({
+                let (f, span) = self.monadic_modifier_op(modified)?;
+                let span = self.add_span(span);
+                match f.node {
+                    Node::Mod(Dip, args, _) => Node::ImplMod(ImplPrimitive::DipN(2), args, span),
+                    Node::ImplMod(ImplPrimitive::DipN(n), args, _) => {
+                        Node::ImplMod(ImplPrimitive::DipN(n + 1), args, span)
+                    }
+                    _ => Node::Mod(Dip, eco_vec![f], span),
+                }
+            }),
             Fork => {
                 let (f, g, f_span, _) = self.dyadic_modifier_ops(modified)?;
                 if !modified.pack_expansion && f.node.as_primitive() == Some(Primitive::Identity) {
@@ -597,31 +613,33 @@ impl Compiler {
                 let Some(sub) = subscript else {
                     return Ok(None);
                 };
-                let sub = self.validate_subscript(sub);
-                let sub_span = sub.span;
-                let mut sub = sub
-                    .value
-                    .map_num(|n| self.finite_and_positive_subscript(n, 2, Both, &sub_span) as u32);
-                let span = self.add_span(modified.modifier.span.clone());
-                let op = self.monadic_modifier_op(modified)?.0;
-                if let Some(side) = &mut sub.side {
-                    if let Some(side_n) = side.n {
-                        if side_n > op.sig.args() {
-                            self.add_error(
-                                modified.modifier.span.clone().merge(sub_span),
-                                format!(
-                                    "Sided {}'s quantifier cannot be greater than its \
-                                    function's arguments, but {} > {}",
-                                    Primitive::Both.format(),
-                                    side_n,
-                                    op.sig.args()
-                                ),
-                            );
-                            side.n = Some(op.sig.args());
+                func!({
+                    let sub = self.validate_subscript(sub);
+                    let sub_span = sub.span;
+                    let mut sub = sub.value.map_num(|n| {
+                        self.finite_and_positive_subscript(n, 2, Both, &sub_span) as u32
+                    });
+                    let span = self.add_span(modified.modifier.span.clone());
+                    let op = self.monadic_modifier_op(modified)?.0;
+                    if let Some(side) = &mut sub.side {
+                        if let Some(side_n) = side.n {
+                            if side_n > op.sig.args() {
+                                self.add_error(
+                                    modified.modifier.span.clone().merge(sub_span),
+                                    format!(
+                                        "Sided {}'s quantifier cannot be greater than its \
+                                        function's arguments, but {} > {}",
+                                        Primitive::Both.format(),
+                                        side_n,
+                                        op.sig.args()
+                                    ),
+                                );
+                                side.n = Some(op.sig.args());
+                            }
                         }
                     }
-                }
-                Node::ImplMod(ImplPrimitive::BothImpl(sub), eco_vec![op], span)
+                    Node::ImplMod(ImplPrimitive::BothImpl(sub), eco_vec![op], span)
+                })
             }
             Bracket => {
                 let Some(sub) = subscript else {
@@ -630,39 +648,41 @@ impl Compiler {
                 let Some(side) = self.subscript_side_only(&sub, Bracket.format()) else {
                     return Ok(None);
                 };
-                let span = self.add_span(modified.modifier.span.clone());
-                let (a, b, _, _) = self.dyadic_modifier_ops(modified)?;
-                if a.sig.args() != 2 || b.sig.args() != 2 {
-                    self.add_error(
-                        modified.modifier.span.clone().merge(sub.span),
-                        format!(
-                            "Sided {}'s functions must both have 2 arguments, \
-                            but their signatures are {} and {}.",
-                            Primitive::Bracket.format(),
-                            a.sig,
-                            b.sig
-                        ),
-                    );
-                    Node::Mod(Bracket, eco_vec![a, b], span)
-                } else {
-                    let sub_span = self.add_span(sub.span);
-                    let mut node = match side {
-                        SubSide::Left => Node::Mod(
-                            On,
-                            eco_vec![Node::Prim(Flip, sub_span).sig_node().unwrap()],
-                            sub_span,
-                        ),
-                        SubSide::Right => Node::Mod(
-                            Dip,
-                            eco_vec![Node::ImplPrim(ImplPrimitive::Over, sub_span)
-                                .sig_node()
-                                .unwrap()],
-                            sub_span,
-                        ),
-                    };
-                    node.push(Node::Mod(Bracket, eco_vec![a, b], span));
-                    node
-                }
+                func!({
+                    let span = self.add_span(modified.modifier.span.clone());
+                    let (a, b, _, _) = self.dyadic_modifier_ops(modified)?;
+                    if a.sig.args() != 2 || b.sig.args() != 2 {
+                        self.add_error(
+                            modified.modifier.span.clone().merge(sub.span),
+                            format!(
+                                "Sided {}'s functions must both have 2 arguments, \
+                                but their signatures are {} and {}.",
+                                Primitive::Bracket.format(),
+                                a.sig,
+                                b.sig
+                            ),
+                        );
+                        Node::Mod(Bracket, eco_vec![a, b], span)
+                    } else {
+                        let sub_span = self.add_span(sub.span);
+                        let mut node = match side {
+                            SubSide::Left => Node::Mod(
+                                On,
+                                eco_vec![Node::Prim(Flip, sub_span).sig_node().unwrap()],
+                                sub_span,
+                            ),
+                            SubSide::Right => Node::Mod(
+                                Dip,
+                                eco_vec![Node::ImplPrim(ImplPrimitive::Over, sub_span)
+                                    .sig_node()
+                                    .unwrap()],
+                                sub_span,
+                            ),
+                        };
+                        node.push(Node::Mod(Bracket, eco_vec![a, b], span));
+                        node
+                    }
+                })
             }
             prim @ (With | Off) => {
                 let (mut sn, _) = self.monadic_modifier_op(modified)?;
@@ -801,9 +821,7 @@ impl Compiler {
                             Node::from_iter(repeat_n(Node::Prim(Dup, span), n - 1))
                         };
                         if side.side == SubSide::Right && n < sig.args() {
-                            for _ in 0..sig.args() - n {
-                                dups = Node::Mod(Dip, eco_vec![dups.sig_node().unwrap()], span);
-                            }
+                            dups = dups.sig_node().unwrap().dipped(sig.args() - n, span).node;
                         }
                         node.prepend(dups);
                         return Ok(Some(node));
@@ -835,9 +853,9 @@ impl Compiler {
                     let span = self.add_span(modified.modifier.span.clone());
                     let mut flip = Node::Prim(Flip, span);
                     if side.value == SubSide::Right {
-                        for _ in 0..sig.args().saturating_sub(2) {
-                            flip = Node::Mod(Dip, eco_vec![flip.sig_node().unwrap()], span);
-                        }
+                        flip = (flip.sig_node().unwrap())
+                            .dipped(sig.args().saturating_sub(2), span)
+                            .node;
                     }
                     node.prepend(flip);
                 } else {
@@ -1176,14 +1194,9 @@ impl Compiler {
                 if tried.sig.args() + 1 < handler.sig.args() {
                     // Tried must pop arguments that are only for the handler
                     let arg_diff = handler.sig.args() - tried.sig.args() - 1;
-                    let mut pre =
-                        SigNode::new((arg_diff, 0), eco_vec![Node::Prim(Pop, span); arg_diff]);
-                    for _ in 0..tried.sig.args() {
-                        pre = SigNode::new(
-                            (pre.sig.args() + 1, pre.sig.outputs() + 1),
-                            Node::Mod(Dip, eco_vec![pre], span),
-                        );
-                    }
+                    let pre =
+                        SigNode::new((arg_diff, 0), eco_vec![Node::Prim(Pop, span); arg_diff])
+                            .dipped(tried.sig.args(), span);
                     tried.sig.update_args(|a| a + arg_diff);
                     tried.node.prepend(pre.node);
                 } else if tried.sig.outputs() < handler.sig.outputs() {
@@ -1198,16 +1211,11 @@ impl Compiler {
                         let diff_diff = arg_diff.saturating_sub(output_diff);
                         if diff_diff > 0 {
                             // Handler must pop arguments that are only for the tried
-                            let mut pre = SigNode::new(
+                            let pre = SigNode::new(
                                 (diff_diff, 0),
                                 eco_vec![Node::Prim(Pop, span); diff_diff],
-                            );
-                            for _ in 0..handler.sig.args() + arg_diff - diff_diff {
-                                pre = SigNode::new(
-                                    (pre.sig.args() + 1, pre.sig.outputs() + 1),
-                                    Node::Mod(Dip, eco_vec![pre], span),
-                                );
-                            }
+                            )
+                            .dipped(handler.sig.args() + arg_diff - diff_diff, span);
                             (handler.sig)
                                 .update_args_outputs(|a, o| (a + arg_diff, o + output_diff));
                             handler.node.prepend(pre.node);
@@ -1345,15 +1353,11 @@ impl Compiler {
                                         0 => Node::empty(),
                                         1 => Node::Prim(Fix, sub_span),
                                         n => {
-                                            let mut node = Node::Prim(Fix, sub_span);
-                                            for _ in 1..n {
-                                                node = Node::Mod(
-                                                    Dip,
-                                                    eco_vec![node.sig_node().unwrap()],
-                                                    sub_span,
-                                                );
-                                            }
-                                            node
+                                            Node::Prim(Fix, sub_span)
+                                                .sig_node()
+                                                .unwrap()
+                                                .dipped(n.saturating_sub(1), sub_span)
+                                                .node
                                         }
                                     },
                                 };

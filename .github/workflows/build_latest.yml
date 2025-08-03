@@ -35,7 +35,10 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/cache@v4
       with:
-        path: target
+        path: |
+          target/
+          !target/tmp/
+          !target/debug/incremental/
         key: build-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
           build-${{ runner.os }}-
@@ -48,7 +51,10 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/cache@v4
       with:
-        path: target
+        path: |
+          target/
+          !target/tmp/
+          !target/debug/incremental/
         key: build-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
           build-${{ runner.os }}-
@@ -61,7 +67,10 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/cache@v4
       with:
-        path: target
+        path: |
+          target/
+          !target/tmp/
+          !target/debug/incremental/
         key: build-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
           build-${{ runner.os }}-
@@ -78,7 +87,10 @@ jobs:
         ref: main
     - uses: actions/cache@v4
       with:
-        path: target
+        path: |
+          target/
+          !target/tmp/
+          !target/debug/incremental/
         key: build-${{ runner.os }}-${{ hashFiles('Cargo.lock', '.github/workflows/build_latest.yml') }}
         restore-keys: |
           build-${{ runner.os }}-

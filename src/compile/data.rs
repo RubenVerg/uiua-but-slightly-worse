@@ -278,8 +278,9 @@ impl Compiler {
         let mut variant_index = 0;
         if data.variant {
             let module_scope = self.higher_scopes.last_mut().unwrap_or(&mut self.scope);
-            variant_index = module_scope.data_variants;
-            module_scope.data_variants += 1;
+            variant_index = module_scope.data_variants.len();
+            let name = data.name.as_ref().unwrap().value.clone();
+            module_scope.data_variants.insert(name);
         }
 
         // Make getters
@@ -360,9 +361,8 @@ impl Compiler {
             .map(|f| f.init.as_ref().map(|sn| sn.sig.args()).unwrap_or(1))
             .sum();
         let mut node = if has_fields {
-            let mut inner = Node::default();
-            let mut sig = Signature::new(0, 0);
-            for field in fields.iter().rev() {
+            let mut field_nodes = EcoVec::with_capacity(fields.len());
+            for field in &fields {
                 let mut arg = if let Some(sn) = &field.init {
                     sn.clone()
                 } else {
@@ -378,18 +378,11 @@ impl Compiler {
                         Node::ImplPrim(ImplPrimitive::ValidateNonBoxedVariant, field.span).into(),
                     ));
                 }
-                if !inner.is_empty() {
-                    for _ in 0..arg.sig.args() {
-                        inner = Node::Mod(Primitive::Dip, eco_vec![SigNode::new(sig, inner)], span);
-                    }
-                }
-                sig.update_args(|a| a + arg.sig.args());
-                sig.update_outputs(|o| o + arg.sig.outputs());
-                inner.push(arg.node);
+                field_nodes.push(arg);
             }
             let mut node = Node::Array {
                 len: fields.len(),
-                inner: inner.into(),
+                inner: Node::Mod(Primitive::Bracket, field_nodes, span).into(),
                 boxed,
                 allow_ext: true,
                 prim: None,
@@ -582,6 +575,26 @@ impl Compiler {
         Ok(())
     }
     pub(super) fn end_enum(&mut self) -> UiuaResult {
+        // Add Variants binding
+        if !self.scope.data_variants.is_empty()
+            && !self.scope.names.get("Variants").is_some_and(|ln| ln.public)
+        {
+            let index = self.next_global;
+            self.next_global += 1;
+            let local = LocalName {
+                index,
+                public: true,
+            };
+            let value = take(&mut self.scope.data_variants)
+                .into_iter()
+                .map(|s| Boxed(s.chars().collect()))
+                .collect();
+            let meta = BindingMeta {
+                comment: Some("Names of the data variants of the module".into()),
+                ..Default::default()
+            };
+            self.compile_bind_const("Variants".into(), local, Some(value), 0, meta);
+        }
         Ok(())
     }
 }

@@ -208,6 +208,7 @@ pub static UN_PATTERNS: &[&dyn InvertPattern] = &[
     &ArrayPat,
     &UnpackPat,
     &DipPat,
+    &DipNPat,
     &BothPat,
     &ImplBothPat,
     &BracketPat,
@@ -432,6 +433,14 @@ inverse!(DipPat, input, asm, Dip, span, [f], {
     Ok((input, Mod(Dip, eco_vec![inv], span)))
 });
 
+inverse!(DipNPat, input, asm, ref, ImplMod(DipN(n), args, span), {
+    let [f] = args.as_slice() else {
+        return generic();
+    };
+    let inv = f.un_inverse(asm)?;
+    Ok((input, ImplMod(DipN(*n), eco_vec![inv], *span)))
+});
+
 inverse!(BothPat, input, asm, Both, span, [f], {
     let inv = f.un_inverse(asm)?;
     Ok((
@@ -456,10 +465,12 @@ inverse!(
     }
 );
 
-inverse!(BracketPat, input, asm, Bracket, span, [f, g], {
-    let f_inv = f.un_inverse(asm)?;
-    let g_inv = g.un_inverse(asm)?;
-    Ok((input, ImplMod(UnBracket, eco_vec![f_inv, g_inv], span)))
+inverse!(BracketPat, input, asm, Bracket, span, args, {
+    let mut inv_args = EcoVec::with_capacity(args.len());
+    for sn in args {
+        inv_args.push(sn.un_inverse(asm)?);
+    }
+    Ok((input, ImplMod(UnBracket, inv_args, span)))
 });
 
 inverse!(OnPat, input, asm, On, span, [f], {

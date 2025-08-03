@@ -53,7 +53,7 @@ macro_rules! impl_primitive {
         impl ImplPrimitive {
             pub fn args(&self) -> Option<usize> {
                 Some(match self {
-                    $($(ImplPrimitive::$variant {..}  => $args,)?)*
+                    $($(ImplPrimitive::$variant { .. }  => $args,)?)*
                     ImplPrimitive::UndoDeshape(_) => 2,
                     ImplPrimitive::UndoTransposeN(n, _) => *n,
                     ImplPrimitive::UndoReverse { n, .. } => *n,
@@ -68,7 +68,7 @@ macro_rules! impl_primitive {
             }
             pub fn outputs(&self) -> Option<usize> {
                 Some(match self {
-                    $($(ImplPrimitive::$variant {..} => $outputs,)?)*
+                    $($(ImplPrimitive::$variant { .. } => $outputs,)?)*
                     ImplPrimitive::UndoTransposeN(n, _) => *n,
                     ImplPrimitive::UndoReverse { n, .. } => *n,
                     ImplPrimitive::UndoRotate(n) => *n,
@@ -82,7 +82,7 @@ macro_rules! impl_primitive {
             }
             pub fn modifier_args(&self) -> Option<usize> {
                 match self {
-                    $($(ImplPrimitive::$variant => Some($margs),)?)*
+                    $($(ImplPrimitive::$variant { .. } => Some($margs),)?)*
                     ImplPrimitive::ReduceDepth(_)
                     | ImplPrimitive::EachSub(_)
                     | ImplPrimitive::RowsSub(..) => Some(1),
@@ -235,6 +235,7 @@ impl_primitive!(
     (2, MatrixDiv),
     (2, RangeStart),
     (2(3), Over),
+    ([1], DipN(usize)),
     (1, NBits(usize)),
     (1, DeshapeSub(i32)),
     (1, ParseSub(usize)),
@@ -490,6 +491,12 @@ impl fmt::Display for ImplPrimitive {
                     ..Default::default()
                 }
             ),
+            &DipN(n) => {
+                for _ in 0..n {
+                    write!(f, "{Dip}")?;
+                }
+                Ok(())
+            }
         }
     }
 }

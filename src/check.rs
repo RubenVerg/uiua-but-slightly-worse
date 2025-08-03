@@ -375,8 +375,10 @@ impl VirtualEnv {
                     self.handle_args_outputs(f.args().max(g.args()), f.outputs() + g.outputs());
                 }
                 Bracket => {
-                    let [f, g] = get_args(args)?;
-                    self.handle_args_outputs(f.args() + g.args(), f.outputs() + g.outputs());
+                    let (args, outputs) = args.iter().fold((0, 0), |(a, o), sn| {
+                        (a + sn.sig.args(), o + sn.sig.outputs())
+                    });
+                    self.handle_args_outputs(args, outputs);
                 }
                 Both => {
                     let [f] = get_args_nodes(args)?;
@@ -459,6 +461,11 @@ impl VirtualEnv {
                     self.sig_node(sn)?;
                     self.handle_args_outputs(0, n);
                 }
+                &DipN(n) => {
+                    let [mut sig] = get_args(args)?;
+                    sig.update_args_outputs(|a, o| (a + n, o + n));
+                    self.handle_sig(sig);
+                }
                 ReduceContent | ReduceDepth(_) => {
                     let [sig] = get_args(args)?;
                     let args = sig.args().saturating_sub(sig.outputs());
@@ -485,8 +492,10 @@ impl VirtualEnv {
                 }
                 UnFill | SidedFill(_) => self.fill(args)?,
                 UnBracket => {
-                    let [f, g] = get_args(args)?;
-                    self.handle_args_outputs(f.args() + g.args(), f.outputs() + g.outputs());
+                    let (args, outputs) = args.iter().fold((0, 0), |(a, o), sn| {
+                        (a + sn.sig.args(), o + sn.sig.outputs())
+                    });
+                    self.handle_args_outputs(args, outputs);
                 }
                 BothImpl(sub) | UnBothImpl(sub) => {
                     let [f] = get_args(args)?;
