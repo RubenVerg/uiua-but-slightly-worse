@@ -7,6 +7,7 @@ use std::{
 
 use ecow::eco_vec;
 
+use crate::algorithm::validate_size;
 use crate::fill::FillValue;
 use crate::{
     algorithm::loops::flip, algorithm::EcoString, array::*, SigNode, Uiua, UiuaError, UiuaResult,
@@ -148,7 +149,8 @@ where
 
     // dbg!(&a.shape, &b.shape, &new_shape);
 
-    let mut new_data = eco_vec![C::default(); new_shape.elements()];
+    let elem_count = validate_size::<C>(new_shape.iter().copied(), env)?;
+    let mut new_data = eco_vec![C::default(); elem_count];
     if !new_shape.contains(&0) {
         let slice = new_data.make_mut();
         let a_fill = a_fill.as_ref().ok();
@@ -378,6 +380,7 @@ where
     };
     let (new_shape, requires_fill) =
         derive_new_shape(&a.shape, &b.shape, fill.as_ref().err().copied(), env)?;
+    validate_size::<T>(new_shape.iter().copied(), env)?;
     let fill = if requires_fill { fill.ok() } else { None };
 
     // dbg!(a.shape, b.shape, &new_shape, &fill);

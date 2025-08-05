@@ -9,7 +9,7 @@ use std::{
     borrow::Cow,
     cmp::Ordering,
     hash::{DefaultHasher, Hash, Hasher},
-    iter::{once, repeat_n, repeat_with},
+    iter::{once, repeat_n},
     mem::{replace, swap, take},
 };
 
@@ -1086,15 +1086,6 @@ impl Value {
             Value::Byte(b) => b.rotate_depth(by_ints()?, depth, forward, env)?,
             Value::Complex(b) => b.rotate_depth(by_ints()?, depth, forward, env)?,
             Value::Char(b) => b.rotate_depth(by_ints()?, depth, forward, env)?,
-            Value::Box(b) if b.rank() == depth => {
-                let row_shape: Shape = self.shape.iter().skip(depth).copied().collect();
-                for (rot, Boxed(val)) in repeat_with(|| self.row_shaped_slices(row_shape.clone()))
-                    .flatten()
-                    .zip(b.data.as_mut_slice())
-                {
-                    rot.rotate_depth(val, 0, forward, env)?;
-                }
-            }
             Value::Box(a) => a.rotate_depth(by_ints()?, depth, forward, env)?,
             Value::Lambda(b) => b.rotate_depth(by_ints()?, depth, forward, env)?,
         }
