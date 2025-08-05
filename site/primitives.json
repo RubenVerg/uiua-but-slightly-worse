@@ -627,6 +627,13 @@
     "class": "IteratingModifier",
     "description": "Repeat a function while a condition holds"
   },
+  "drawkcab": {
+    "glyph": "⍨",
+    "outputs": 1,
+    "modifier_args": 1,
+    "class": "Stack",
+    "description": "Call a function and then swap the results"
+  },
   "drop": {
     "glyph": "↘",
     "args": 2,
@@ -844,7 +851,7 @@
     "description": "Convert a color array from RGB to HSV"
   },
   "identity": {
-    "glyph": "∘",
+    "glyph": "∸",
     "args": 1,
     "outputs": 1,
     "class": "Planet",
@@ -962,14 +969,6 @@
     "class": "DyadicPervasive",
     "description": "Compare for less than"
   },
-  "logarithm": {
-    "glyph": "ₙ",
-    "args": 2,
-    "outputs": 1,
-    "class": "DyadicPervasive",
-    "description": "Get the based logarithm of a number",
-    "deprecated": true
-  },
   "map": {
     "args": 2,
     "outputs": 1,
@@ -1055,6 +1054,7 @@
     "description": "Compare for inequality"
   },
   "now": {
+    "glyph": "⧖",
     "args": 0,
     "outputs": 1,
     "class": "Time",
@@ -1095,6 +1095,13 @@
     "class": "Stack",
     "description": "Call a function but keep its first argument on the top of the stack"
   },
+  "one": {
+    "glyph": "–",
+    "args": 0,
+    "outputs": 1,
+    "class": "Misc",
+    "description": "Calculate a fraction with no numbers"
+  },
   "orient": {
     "glyph": "⤸",
     "args": 2,
@@ -1113,6 +1120,13 @@
     "outputs": 1,
     "class": "Environment",
     "description": "Get the current operating system family"
+  },
+  "pag": {
+    "glyph": "‣",
+    "outputs": 1,
+    "modifier_args": 1,
+    "class": "Planet",
+    "description": "Call a function then discard the top stack value"
   },
   "parse": {
     "glyph": "⋕",
@@ -1211,6 +1225,13 @@
     "outputs": 1,
     "class": "MonadicArray",
     "description": "Make an array of all natural numbers less than a number"
+  },
+  "rank": {
+    "glyph": "⧊",
+    "args": 1,
+    "outputs": 1,
+    "class": "MonadicArray",
+    "description": "Get the number of dimensions of an array"
   },
   "reach": {
     "glyph": "𝄐",
@@ -1548,5 +1569,12 @@
     "outputs": 1,
     "class": "Encoding",
     "description": "Encode an array into XLSX bytes"
+  },
+  "ylpitlum": {
+    "glyph": "⨰",
+    "args": 2,
+    "outputs": 1,
+    "class": "DyadicPervasive",
+    "description": "Ylpitlum values"
   }
 }
