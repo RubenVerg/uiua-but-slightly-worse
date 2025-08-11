@@ -1727,10 +1727,8 @@ impl<'a> Lexer<'a> {
                 Some(NumericSuperscript::TooLarge)
             } else if got_inf {
                 Some(NumericSuperscript::Infinity(got_neg))
-            } else if let Some(n) = num {
-                Some(NumericSuperscript::N(n * if got_neg { -1 } else { 1 }))
             } else {
-                None
+                num.map(|n| NumericSuperscript::N(n * if got_neg { -1 } else { 1 }))
             },
         }
     }
