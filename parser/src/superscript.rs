@@ -19,6 +19,8 @@ pub struct Superscript<N = NumericSuperscript> {
 pub enum NumericSuperscript {
     /// The number is too large to be represented
     TooLarge,
+    /// Infinity, with true indicating a negative sign
+    Infinity(bool),
     /// A valid number
     #[serde(untagged)]
     N(i32),
@@ -40,6 +42,9 @@ impl fmt::Display for NumericSuperscript {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NumericSuperscript::N(n) => {
+                if *n < 0 {
+                    write!(f, "⁻")?;
+                }
                 for c in n.abs().to_string().chars() {
                     write!(
                         f,
@@ -49,6 +54,8 @@ impl fmt::Display for NumericSuperscript {
                 }
                 Ok(())
             }
+            NumericSuperscript::Infinity(false) => write!(f, "ºº"),
+            NumericSuperscript::Infinity(true) => write!(f, "⁻ºº"),
             NumericSuperscript::TooLarge => write!(f, "…"),
         }
     }

@@ -1183,7 +1183,7 @@ impl Value {
             Value::Complex(c) => c.retropose_depth(depth),
             Value::Char(c) => c.retropose_depth(depth),
             Value::Box(b) => b.retropose_depth(depth),
-            Value::Lambda(l) => l.retropose_depth(depth)
+            Value::Lambda(l) => l.retropose_depth(depth),
         }
     }
 }

@@ -1071,6 +1071,16 @@ impl<'a> Lexer<'a> {
                     let sub = self.subscript(",");
                     self.end(Subscr(sub), start)
                 }
+                "º" => {
+                    if self.next_char_exact("º") {
+                        let sup = self.superscript("ºº");
+                        self.end(Superscr(sup), start);
+                    }
+                }
+                "⁻" => {
+                    let sup = self.superscript("⁻");
+                    self.end(Superscr(sup), start);
+                }
                 "*" => {
                     let sup = self.superscript("*");
                     self.end(Superscr(sup), start)
@@ -1653,9 +1663,13 @@ impl<'a> Lexer<'a> {
     }
     fn superscript(&mut self, init: &str) -> Superscript {
         let mut can_parse_ascii = false;
+        let mut got_neg = false;
+        let mut got_inf = false;
         let mut too_large = false;
         let mut num = None;
         match init {
+            "⁻" => got_neg = true,
+            "ºº" => got_inf = true,
             "*" => can_parse_ascii = true,
             c if c.chars().all(|c| SUPERSCRIPT_DIGITS.contains(&c)) => {
                 num = SUPERSCRIPT_DIGITS
@@ -1666,6 +1680,20 @@ impl<'a> Lexer<'a> {
             _ => {}
         }
         loop {
+            if !got_neg
+                && num.is_none()
+                && (self.next_char_exact("⁻")
+                    || can_parse_ascii && (self.next_char_exact("`") || self.next_char_exact("¯")))
+            {
+                got_neg = true;
+            } else if !got_inf
+                && num.is_none()
+                && (self.next_chars_exact(["º", "º"])
+                    || can_parse_ascii && self.next_chars_exact(["i", "n", "f"]))
+            {
+                got_inf = true;
+                break;
+            }
             if let Some(c) = can_parse_ascii
                 .then(|| self.next_char_if_all(|c| c.is_ascii_digit()))
                 .flatten()
@@ -1697,8 +1725,10 @@ impl<'a> Lexer<'a> {
         Superscript {
             num: if too_large {
                 Some(NumericSuperscript::TooLarge)
+            } else if got_inf {
+                Some(NumericSuperscript::Infinity(got_neg))
             } else if let Some(n) = num {
-                Some(NumericSuperscript::N(n))
+                Some(NumericSuperscript::N(n * if got_neg { -1 } else { 1 }))
             } else {
                 None
             },

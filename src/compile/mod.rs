@@ -1511,6 +1511,15 @@ impl Compiler {
             Word::Superscripted(sup) => {
                 if let Some(NumericSuperscript::N(n)) = sup.script.value.num {
                     Node::from_iter([Node::new_push(n), self.word(sup.word)?])
+                } else if let Some(NumericSuperscript::Infinity(sign)) = sup.script.value.num {
+                    Node::from_iter([
+                        Node::new_push(if sign {
+                            f64::NEG_INFINITY
+                        } else {
+                            f64::INFINITY
+                        }),
+                        self.word(sup.word)?,
+                    ])
                 } else {
                     self.add_error(sup.script.span.clone(), format!("Wrong superscript?"));
                     self.word(sup.word)?
