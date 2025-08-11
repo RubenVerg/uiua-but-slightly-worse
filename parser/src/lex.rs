@@ -1688,7 +1688,7 @@ impl<'a> Lexer<'a> {
                 too_large |= overflow;
                 *num = new_num;
                 can_parse_ascii = false;
-            } else if self.next_char_exact("^") {
+            } else if self.next_char_exact("*") {
                 can_parse_ascii = true;
             } else {
                 break;
