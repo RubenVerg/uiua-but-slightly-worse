@@ -1995,7 +1995,7 @@ impl Value {
                         sig = sig.compose(lam.sn.sig);
                     }
                     let node = Node::from_iter(repeat_n(lam.sn.node, count).flatten());
-                    let mut repr = EcoString::from("⛣");
+                    let mut repr = EcoString::from("⍥");
                     while count > 0 {
                         repr.push(SUBSCRIPT_DIGITS[count % 10]);
                         count /= 10;

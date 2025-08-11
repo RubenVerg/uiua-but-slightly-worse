@@ -977,7 +977,7 @@ impl Compiler {
                     // implementation that allows for negative repeatition counts
                     if sn.sig.inverse() != inv_sig {
                         self.add_error(
-                            span,
+                            span.clone(),
                             format!(
                                 "Repeated function's inverse must have \
                                 the inverse signature, but their signatures \
@@ -988,16 +988,44 @@ impl Compiler {
                     }
                     Node::ImplMod(
                         ImplPrimitive::RepeatWithInverse,
-                        eco_vec![sn, SigNode::new(inv_sig, inv)],
+                        eco_vec![sn.clone(), SigNode::new(inv_sig, inv)],
                         spandex,
                     )
                 } else {
-                    Node::Mod(Primitive::Repeat, eco_vec![sn], spandex)
+                    Node::Mod(Primitive::Repeat, eco_vec![sn.clone()], spandex)
                 };
                 if let Some(n) =
                     subscript.and_then(|sub| self.subscript_n_only(&sub, Repeat.format()))
                 {
-                    node.prepend(Node::new_push(n));
+                    match n {
+                        NOrInfinity::N(n) => {
+                            let repeated_node = if n < 0 {
+                                sn.node.un_inverse(&self.asm).ok()
+                            } else {
+                                Some(sn.node)
+                            };
+                            match repeated_node {
+                                Some(repeated_node) => {
+                                    if n.abs() as usize * repeated_node.len() > 1000 {
+                                        self.add_error(
+                                            span,
+                                            "Repeat subscript would be too large.",
+                                        );
+                                    }
+                                    node =
+                                        Node::from_iter(repeat_n(repeated_node, n.abs() as usize));
+                                }
+                                None => self.add_error(
+                                    span,
+                                    "Negative repeat subscript of a function with no inverse.",
+                                ),
+                            };
+                        }
+                        _ => self.add_error(
+                            span,
+                            "Repeat subscripts cannot be infinite, use superscripts for fixpoint.",
+                        ),
+                    }
                 }
                 node
             }
