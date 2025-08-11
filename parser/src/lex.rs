@@ -1072,8 +1072,8 @@ impl<'a> Lexer<'a> {
                     let sub = self.subscript(",");
                     self.end(Subscr(sub), start)
                 }
-                "^" if self.next_char_exact("^") => {
-                    let sup = self.superscript("^^");
+                "*" => {
+                    let sup = self.superscript("*");
                     self.end(Superscr(sup), start)
                 }
                 "|" if self.next_char_exact(",") => self.end(DownArrow, start),
@@ -1101,7 +1101,6 @@ impl<'a> Lexer<'a> {
                     self.number("-");
                     self.end(Number, start)
                 }
-                "*" => self.end(Star, start),
                 "%" => self.end(Percent, start),
                 "^" => {
                     if let Some(x) = self.next_char_if(|c| c.chars().all(|c| c.is_ascii_digit())) {
@@ -1652,7 +1651,7 @@ impl<'a> Lexer<'a> {
         let mut too_large = false;
         let mut num = None;
         match init {
-            "^^" => can_parse_ascii = true,
+            "*" => can_parse_ascii = true,
             c if c.chars().all(|c| SUPERSCRIPT_DIGITS.contains(&c)) => {
                 num = SUPERSCRIPT_DIGITS
                     .iter()

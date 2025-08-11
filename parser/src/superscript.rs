@@ -27,7 +27,7 @@ pub enum NumericSuperscript {
 impl<N: fmt::Display> fmt::Display for Superscript<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.num.is_none() {
-            return write!(f, "^^");
+            return write!(f, "*");
         };
         if let Some(num) = &self.num {
             num.fmt(f)?;

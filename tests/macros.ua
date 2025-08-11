@@ -72,7 +72,7 @@ X ← 3
   Func ↚ +1
   Mac! ← ^0 Func
 └─╴
-⍤⤙≍ 14 Mod~Mac!×^^2 6
+⍤⤙≍ 14 Mod~Mac!×² 6
 
 ┌─╴M
   Ex ~ "example"
