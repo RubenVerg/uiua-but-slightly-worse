@@ -464,7 +464,7 @@ impl Parser<'_> {
         } else {
             glyph_span
         };
-        let array_macro = if let Some(span) = self.exact(Caret.into()) {
+        let array_macro = if let Some(span) = self.exact(Placeholder(None)) {
             arrow_span = arrow_span.merge(span);
             true
         } else {
@@ -559,7 +559,7 @@ impl Parser<'_> {
                     chars.extend(' '..='~');
                     chars.extend(SUBSCRIPT_DIGITS);
                     chars.extend(SUPERSCRIPT_DIGITS);
-                    chars.extend("←↚‼₋⌞⌟↓".chars());
+                    chars.extend("←↚‼′″‴₋⌞⌟↓".chars());
                     chars.sort_unstable();
                     chars
                 };
@@ -739,7 +739,12 @@ impl Parser<'_> {
             self.errors
                 .push(name.span.clone().sp(ParseError::AmpersandBindingName));
         }
-        if name.value.trim_end_matches(['!', '‼']).chars().count() >= 2
+        if name
+            .value
+            .trim_end_matches(['!', '‼', '\'', '′', '″', '‴'])
+            .chars()
+            .count()
+            >= 2
             && name.value.chars().next().unwrap().is_ascii_lowercase()
         {
             let captialized: String = name
@@ -1627,7 +1632,7 @@ impl Parser<'_> {
         Some(if branches.is_empty() {
             // Normal func
             let reset = self.index;
-            let caret_span = self.exact(Caret.into());
+            let caret_span = self.exact(Placeholder(None));
             if let Some(ident) = self
                 .ident()
                 .filter(|ident| !is_array && ident.value.chars().all(|c| "!‼".contains(c)))
@@ -2013,18 +2018,26 @@ pub fn ident_modifier_args(ident: &str) -> usize {
     count
 }
 
-/// Get the maximum placeholder index in a list of words
-pub fn max_placeholder(words: &[Sp<Word>]) -> Option<usize> {
+/// Get the maximum placeholder index in a list of words,
+/// as well as the span of a placeholder shorthand
+pub fn max_placeholder(words: &[Sp<Word>]) -> Option<(usize, Option<CodeSpan>)> {
     let mut max: Option<usize> = None;
-    let mut set = |i: Option<usize>| {
-        if let Some(i) = i {
+    let mut shorthand_span = None;
+    let mut set = |is: Option<(usize, Option<CodeSpan>)>| {
+        if let Some((i, s)) = is {
             let max = max.get_or_insert(0);
             *max = (*max).max(i);
+            if shorthand_span.is_none() && s.is_some() {
+                shorthand_span = s;
+            }
         }
     };
     for word in words {
         match &word.value {
-            Word::Placeholder(i) => set(Some(*i)),
+            Word::Placeholder(i) => set(Some((
+                i.unwrap_or(0),
+                i.is_none().then(|| word.span.clone()),
+            ))),
             Word::Strand(items) => set(max_placeholder(items)),
             Word::Array(arr) => {
                 for line in arr.word_lines() {
@@ -2048,7 +2061,7 @@ pub fn max_placeholder(words: &[Sp<Word>]) -> Option<usize> {
             _ => {}
         }
     }
-    max
+    max.map(|i| (i, shorthand_span))
 }
 
 /// Trim space words

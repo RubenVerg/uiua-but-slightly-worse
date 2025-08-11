@@ -22,9 +22,12 @@ This version is not yet released. If you are reading this on the website, then t
 - Modules containing data definition variants now contains a `Variants` binding that lists their names
 - Add array pack syntactic sugar. This lets you write code like `[⊃(+|×)]` as `⊃[+|×]`.
 - Subscripts can now be typed with `,` instead of `__`s
+- Binding names can now end with prime characters `′`, `″`, and `‴`
+  - These will format from `'` at the end of a binding name
 - Add numeric subscripts for [`keep ▽`](https://uiua.org/docs/keep) to keep along a number of dimensions
 - Add [`under ⍜`](https://uiua.org/docs/under) capability to [`fork ⊃`](https://uiua.org/docs/fork)s of monadic functions
   - This allows using [`un °`](https://uiua.org/docs/un)[`by ⊸`](https://uiua.org/docs/by)[`fork ⊃`](https://uiua.org/docs/fork) to set multiple properties at once
+- Add `^` shorthand for `^0` in index macros
 - Stabilize [`self ˙`](https://uiua.org/docs/self)
   - Add experimental sided subscripts for [`self ˙`](https://uiua.org/docs/self)
 - Add experimental sided subscripts for [`backward ˜`](https://uiua.org/docs/backward)
@@ -47,6 +50,8 @@ This version is not yet released. If you are reading this on the website, then t
   - [`un °`](https://uiua.org/docs/un)[`&cd`](https://uiua.org/docs/&cd) will output the current working directory
   - [`under ⍜`](https://uiua.org/docs/under)[`&cd`](https://uiua.org/docs/&cd) will return to the original directory afterward
 - Add experimental [`reciprocal ⨪`](https://uiua.org/docs/reciprocal) function, which computes the multiplicative inverse AKA reciprocal of a number
+- Add experimental [`recur`](https://uiua.org/docs/recur) modifier, which generalizes recursive algorithms
+  - This would replace existing recursive functions
 - Make subscripted [`stack ?`](https://uiua.org/docs/stack) merge adjacent non-subscripted [`stack ?`](https://uiua.org/docs/stack) chains
 - Implement [`under ⍜`](https://uiua.org/docs/under)[`regex`](https://uiua.org/docs/regex) for replacing using regex (called `gsub` in some other languages)
 ### Interpreter
@@ -55,6 +60,7 @@ This version is not yet released. If you are reading this on the website, then t
 - Implement filled adjacent [`stencil ⧈`](https://uiua.org/docs/stencil)
 - Remove `rkok` alias and change `kork` to format to `▽₂`
 - Add `each` alias for `≡₀`
+- Add `log` alias for [`un °`](https://uiua.org/docs/un)[`exponential ₑ`](https://uiua.org/docs/exponential)
 - Add `set` alias for [`un °`](https://uiua.org/docs/un)[`by ⊸`](https://uiua.org/docs/by)
 - Improve "Array would be too large" error messages
 - Change short form of the `--experimental` flag for `uiua eval` to use `-x` instead of `-e`

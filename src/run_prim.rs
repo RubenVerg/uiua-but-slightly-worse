@@ -263,7 +263,7 @@ pub fn run_prim_func(prim: &Primitive, env: &mut Uiua) -> UiuaResult {
             let key = env.pop("key")?;
             let val = env.pop("value")?;
             let mut map = env.pop("map")?;
-            map.insert(key, val, env)?;
+            map.insert(key, val, false, env)?;
             env.push(map);
         }
         Primitive::Has => {
@@ -422,6 +422,10 @@ pub fn run_prim_mod(prim: &Primitive, mut ops: Ops, env: &mut Uiua) -> UiuaResul
         }
         Primitive::Tuples => tuples::tuples(ops, env)?,
         Primitive::Stencil => stencil::stencil(ops, env)?,
+        Primitive::Recur => {
+            let [is_leaf, children, combine] = get_ops(ops, env)?;
+            recur::recur(is_leaf, children, combine, env)?;
+        }
 
         // Stack
         Primitive::Fork => {
@@ -950,6 +954,13 @@ impl ImplPrimitive {
                 env.push(left);
             }
             ImplPrimitive::TryClose => _ = run_sys_op(&SysOp::Close, env),
+            ImplPrimitive::UndoGet => {
+                let key = env.pop("key")?;
+                let val = env.pop("value")?;
+                let mut map = env.pop("map")?;
+                map.insert(key, val, true, env)?;
+                env.push(map);
+            }
             ImplPrimitive::UndoInsert => {
                 let key = env.pop(1)?;
                 let _value = env.pop(2)?;
@@ -2526,7 +2537,7 @@ mod tests {
 	"repository": {{
         "idents": {{
             "name": "variable.parameter.uiua",
-            "match": "\\b[a-zA-Z]+(₋?[₀₁₂₃₄₅₆₇₈₉]|,`?\\d+)*[!‼]*\\b"
+            "match": "\\b[a-zA-Z]+['′″‴]*(₋?[₀₁₂₃₄₅₆₇₈₉]|,`?\\d+)*[!‼]*\\b"
         }},
 		"comments": {{
 			"name": "comment.line.uiua",

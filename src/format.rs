@@ -492,6 +492,7 @@ pub(crate) fn format_word(word: &Sp<Word>, inputs: &Inputs) -> String {
         eval_output_comments: false,
     };
     formatter.format_word(word, 0);
+    formatter.resolve_eol_comments();
     formatter.output
 }
 
@@ -557,6 +558,9 @@ impl Formatter<'_> {
             self.format_item(item, max_name_len, depth);
         }
         // Align end-of-line comments
+        self.resolve_eol_comments();
+    }
+    fn resolve_eol_comments(&mut self) {
         if self.config.align_comments && !self.end_of_line_comments.is_empty() {
             // Group comments by consecutive lines
             let mut groups: Vec<(usize, Vec<EoLComment>)> = Vec::new();
@@ -1096,7 +1100,8 @@ impl Formatter<'_> {
                 self.format_modifier(&m.modifier, depth);
                 self.format_words(&m.operands, true, depth);
             }
-            Word::Placeholder(i) => self.push(&word.span, &format!("^{i}")),
+            Word::Placeholder(Some(i)) => self.push(&word.span, &format!("^{i}")),
+            Word::Placeholder(None) => self.push(&word.span, "^"),
             Word::Subscripted(sub) => match &sub.word.value {
                 Word::Modified(m) => {
                     if sub.script.value.num.is_some()

@@ -177,7 +177,11 @@ static UNDER_PATTERNS: &[&dyn UnderPattern] = &[
         (PopUnd(3), UndoRegex),
     ),
     // Map control
-    &MaybeVal((Get, (CopyUnd(2), Get), (PopUnd(1), Flip, PopUnd(1), Insert))),
+    &MaybeVal((
+        Get,
+        (CopyUnd(2), Get),
+        (PopUnd(1), Flip, PopUnd(1), UndoGet),
+    )),
     &Stash(2, Remove, UndoRemove),
     &MaybeVal((Insert, (CopyUnd(3), Insert), (PopUnd(3), UndoInsert))),
     // Shaping
@@ -430,7 +434,9 @@ under!(BothPat, input, g_sig, inverse, asm, {
     );
     let (f_before, mut f_after) = f.under_inverse(inner_g_sig, inverse, asm)?;
 
-    let balanced = g_sig.args() <= g_sig.outputs() && !(val.is_some() && f.sig == (1, 1));
+    let balanced = g_sig.args()
+        <= g_sig.outputs() + sub.side.as_ref().map_or(0, |sided| sided.n.unwrap_or(1))
+        && !(val.is_some() && f.sig == (1, 1));
     // Make before
     let mut before = val.unwrap_or_default();
     before.push(if !inverse || balanced {

@@ -1030,9 +1030,7 @@ pub(super) fn pad_keep_counts<'a>(
             }
             Err(e) if counts.is_empty() => {
                 return Err(env.error(format!(
-                    "Cannot keep array with shape {} with array of shape {}{e}",
-                    len,
-                    FormatShape(&[amount.len()])
+                    "Cannot keep array of length {len} with array of length 0{e}",
                 )))
             }
             Err(_) => {
@@ -1798,6 +1796,9 @@ impl<T: RealArrayValue> Array<T> {
         }
         if base == 1.0 {
             return Err(env.error("Base cannot be 1"));
+        }
+        if base == -1.0 {
+            return Err(env.error("Base cannot be ¯1"));
         }
         if base.is_infinite() {
             return Err(env.error("Base cannot be infinite"));

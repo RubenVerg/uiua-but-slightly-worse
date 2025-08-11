@@ -1736,9 +1736,8 @@ impl Compiler {
     ) -> UiuaResult<Node> {
         let full_span = (modifier_span.clone()).merge(operands.last().unwrap().span.clone());
         // Collect operands as strings
-        let mut operands: Vec<Sp<Word>> = (operands.into_iter())
-            .filter(|w| w.value.is_code())
-            .collect();
+        let mut operands: Vec<Sp<Word>> =
+            operands.into_iter().filter(|w| w.value.is_code()).collect();
         if operands.len() == 1 {
             let operand = operands.remove(0);
             operands = match operand.value {
@@ -1919,7 +1918,8 @@ impl Compiler {
         let mut error = None;
         recurse_words_mut(words, &mut |word| match &mut word.value {
             Word::Placeholder(n) => {
-                if let Some(replacement) = initial.get(*n) {
+                let n = n.unwrap_or(0);
+                if let Some(replacement) = initial.get(n) {
                     *word = replacement.clone();
                 } else {
                     error = Some(self.error(

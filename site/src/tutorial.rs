@@ -657,6 +657,8 @@ fn TutorialBindings() -> impl IntoView {
         <p>"Bindings "<em>"can"</em>" contain subscript numbers. These will format from "<code>","</code>" followed by some digits. Try formatting the example below!"</p>
         <Editor example="X,1 = 5\nSha,256 = \"TODO\""/>
         <p>"Subscripts in binding names are only allowed at the end."</p>
+        <p>"Bindings are allowed to end with "<code>"′"</code>" characters to help indicate related bindings. These format from "<code>"'"</code>". Try formatting the following example."</p>
+        <Editor example="X = [1_2 3_4]\nX' = [2_3 4_5]\nX'' = [2_4 6_8]"/>
         <p><strong>"Bindings are case-sensitive."</strong></p>
         <p>"The parser can sometimes mistake all-lowercase binding names for unformatted built-in functions."</p>
         <p>"Here, the parser thinks that "<code>"part"</code>" is "<Prim prim=Partition/>"."</p>
@@ -1454,7 +1456,7 @@ fn TutorialThinkingWithArrays() -> impl IntoView {
             number=5
             prompt="reverses each word in a string but keeps the words in the same order"
             example=r#""get in the racecar""#
-            answer="⍜⊜□≡⇌ ⊸≠@ "
+            answer="⍜⊜□⍚⇌ ⊸≠@ "
             tests={&[r#""arrays are neat""#, r#""wow mom""#]}
             hidden=r#""Wow, mom!""#/>
     }
