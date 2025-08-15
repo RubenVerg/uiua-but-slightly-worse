@@ -2257,6 +2257,7 @@ impl Compiler {
                             | (Rows | Each | Inventory)
                             | (Repeat | Tuples | Stencil)
                             | (Fill | Geometric)
+                            | (Fork)
                     ) {
                         self.add_error(
                             m.modifier.span.clone().merge(scr.span.clone()),
@@ -2655,7 +2656,8 @@ impl<N: PartialEq> PartialEq<N> for SubNOrSide<N> {
 impl Compiler {
     fn validate_subscript(&mut self, sub: Sp<Subscript>) -> Sp<Subscript<NOrInfinity>> {
         let side = sub.value.side;
-        let num = (sub.value.num.as_ref()).and_then(|num| self.numeric_subscript_n(num, &sub.span));
+        let num = (sub.value.num.as_ref())
+            .and_then(|num: &NumericSubscript| self.numeric_subscript_n(num, &sub.span));
         if num.is_none() && side.is_none() {
             self.add_error(sub.span.clone(), "Subscript is incomplete");
         }

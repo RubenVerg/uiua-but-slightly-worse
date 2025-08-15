@@ -393,7 +393,16 @@ impl Compiler {
             }
             op_count = modified.code_operands().count();
         }
-        if op_count == modified.modifier.value.args() {
+        if op_count
+            == match subscript {
+                None => modified.modifier.value.args(),
+                Some(ref subscript) => modified
+                    .modifier
+                    .value
+                    .args_subscripted(&subscript.value)
+                    .unwrap(),
+            }
+        {
             // Inlining
             if let Some(node) = self.inline_modifier(&modified, subscript)? {
                 return Ok(node);
@@ -594,19 +603,38 @@ impl Compiler {
                 }
             }),
             Fork => {
-                let (f, g, f_span, _) = self.dyadic_modifier_ops(modified)?;
-                if !modified.pack_expansion && f.node.as_primitive() == Some(Primitive::Identity) {
-                    self.emit_diagnostic(
-                        "Prefer `⟜` over `⊃∘` for clarity",
-                        DiagnosticKind::Style,
-                        modified.modifier.span.clone().merge(f_span),
-                    );
-                }
+                let how_many = match subscript {
+                    None => 2,
+                    Some(subscript) => match subscript.value.num {
+                        Some(NumericSubscript::N(n)) if n > 0 => n as usize,
+                        _ => unreachable!(),
+                    },
+                };
                 let span = self.add_span(modified.modifier.span.clone());
-                match (f.sig.args(), g.sig.args()) {
-                    (0, _) => Node::from_iter([g.node, f.node]),
-                    (1, 0) => Node::from_iter([Node::Mod(Dip, eco_vec![g], span), f.node]),
-                    _ => Node::Mod(Fork, eco_vec![f, g], span),
+                if how_many == 2 {
+                    let (f, g, f_span, _) = self.dyadic_modifier_ops(modified)?;
+                    if !modified.pack_expansion
+                        && f.node.as_primitive() == Some(Primitive::Identity)
+                    {
+                        self.emit_diagnostic(
+                            "Prefer `⟜` over `⊃∘` for clarity",
+                            DiagnosticKind::Style,
+                            modified.modifier.span.clone().merge(f_span),
+                        );
+                    }
+                    match (f.sig.args(), g.sig.args()) {
+                        (0, _) => Node::from_iter([g.node, f.node]),
+                        (1, 0) => Node::from_iter([Node::Mod(Dip, eco_vec![g], span), f.node]),
+                        _ => Node::Mod(Fork, eco_vec![f, g], span),
+                    }
+                } else {
+                    let mut node = SigNode::new((0, 0), Node::empty());
+                    let mut operands = modified.code_operands().cloned();
+                    for _ in 0..how_many {
+                        let g = self.word_sig(operands.next().unwrap())?;
+                        node = Node::Mod(Fork, eco_vec![node, g], span).sig_node().unwrap();
+                    }
+                    node.into()
                 }
             }
             Both => {

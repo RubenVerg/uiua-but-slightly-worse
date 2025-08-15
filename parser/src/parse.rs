@@ -14,8 +14,8 @@ use ecow::EcoString;
 use crate::{
     ast::*,
     lex::{AsciiToken::*, Token::*, *},
-    BindingCounts, Complex, Diagnostic, DiagnosticKind, Ident, Inputs, NumComponent, Primitive,
-    Signature,
+    BindingCounts, Complex, Diagnostic, DiagnosticKind, Ident, Inputs, NumComponent,
+    NumericSubscript, Primitive, Signature, Subscript,
 };
 
 /// An error that occurred while parsing
@@ -27,6 +27,7 @@ pub enum ParseError {
     Unexpected(Token),
     InvalidArgCount(String),
     InvalidOutCount(String),
+    WrongSubscript(Modifier, Subscript<NumericSubscript>),
     AmpersandBindingName,
     ModifierImportName,
     SplitInModifier,
@@ -90,6 +91,7 @@ impl fmt::Display for ParseError {
             ParseError::Unexpected(token) => write!(f, "Unexpected token {token}"),
             ParseError::InvalidArgCount(n) => write!(f, "Invalid argument count `{n}`"),
             ParseError::InvalidOutCount(n) => write!(f, "Invalid output count `{n}`"),
+            ParseError::WrongSubscript(modifier, subscript) => write!(f, "Modifier {modifier}, whose subscripts change its signature, cannot accept subscript {subscript}"),
             ParseError::AmpersandBindingName => write!(f, "Binding names may not contain `&`"),
             ParseError::ModifierImportName => {
                 write!(f, "Modifier names may not be used as import names")
@@ -1110,7 +1112,20 @@ impl Parser<'_> {
             self.spaces();
         }
         let mut args = Vec::new();
-        for i in 0..modifier.args() {
+        let arg_count = match subscript.clone() {
+            None => modifier.args(),
+            Some(sp) => match modifier.args_subscripted(&sp.value) {
+                Some(args) => args,
+                None => {
+                    self.errors.push(
+                        self.curr_span()
+                            .sp(ParseError::WrongSubscript(modifier.clone(), sp.value)),
+                    );
+                    0
+                }
+            },
+        };
+        for i in 0..arg_count {
             loop {
                 args.extend(self.spaces());
                 if let Some(span) = self.exact(DoubleSemicolon.into()) {

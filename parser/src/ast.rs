@@ -6,8 +6,8 @@ use ecow::EcoString;
 use serde::*;
 
 use crate::{
-    parse::ident_modifier_args, BindingCounts, CodeSpan, Complex, Ident, Primitive,
-    SemanticComment, Signature, Sp, Subscript, Superscript,
+    parse::ident_modifier_args, BindingCounts, CodeSpan, Complex, Ident, NumericSubscript,
+    Primitive, SemanticComment, Signature, Sp, Subscript, Superscript,
 };
 
 /// A top-level item
@@ -784,6 +784,30 @@ impl Modifier {
             Modifier::Primitive(prim) => prim.modifier_args().unwrap_or(0),
             Modifier::Ref(r) => r.modifier_args(),
             Modifier::Macro(mac) => ident_modifier_args(&mac.ident.value),
+        }
+    }
+
+    #[allow(clippy::match_single_binding, unused_parens)]
+    pub fn args_subscripted(&self, subscript: &Subscript) -> Option<usize> {
+        use Primitive::*;
+
+        match self {
+            Modifier::Primitive(prim) => match prim {
+                (Both | Bracket)
+                | (Slf | Backward | Reach | On | By | With | Off)
+                | (Rows | Each | Inventory)
+                | (Repeat | Tuples | Stencil)
+                | (Fill | Geometric) => Some(self.args()),
+                (Fork) => match subscript {
+                    Subscript {
+                        num: Some(NumericSubscript::N(num)),
+                        side: None,
+                    } if *num > 0 => Some(*num as usize),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
         }
     }
 }
