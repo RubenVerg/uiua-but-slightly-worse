@@ -35,6 +35,7 @@ pub enum DocsPage {
     FormatConfig,
     Experimental,
     Idioms,
+    Worse,
 }
 
 impl IntoParam for DocsPage {
@@ -56,6 +57,7 @@ impl IntoParam for DocsPage {
             "format-config" => Ok(Self::FormatConfig),
             "experimental" => Ok(Self::Experimental),
             "idioms" => Ok(Self::Idioms),
+            "worse" => Ok(Self::Worse),
             value => Ok(Self::Search(value.into())),
         }
     }
@@ -96,6 +98,10 @@ pub fn Docs() -> impl IntoView {
             .into_view(),
             DocsPage::Experimental => Experimental().into_view(),
             DocsPage::Idioms => Idioms().into_view(),
+            DocsPage::Worse => {
+                title_markdown("...but slightly worse", "/text/worse.md", View::default())
+                    .into_view()
+            }
         };
 
         view! {
@@ -253,6 +259,7 @@ fn DocsHome(#[prop(optional)] search: String) -> impl IntoView {
             <li><A href="/docs/optimizations">"Optimizations"</A>" - a list of optimizations in the interpreter"</li>
             <li><A href="/docs/experimental">"Experimental Features"</A>" - an overview of experimental features"</li>
             <li><A href="/docs/idioms">"Idioms"</A>" - commonly useful, non-obvious idioms. Also "<A href="/docs/idioms#aliases">"aliases"</A>"."</li>
+            <li><A href="/docs/worse">"...but slightly worse"</A>" - Deltas between Uiua and Uiua but slightly worse"</li>
         </ul>
 
         <Hd id="other-pages">"Other Pages"</Hd>

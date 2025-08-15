@@ -620,6 +620,13 @@
     "class": "Environment",
     "description": "Get the DLL extension for the current platform"
   },
+  "dnuor": {
+    "glyph": "⁆",
+    "args": 1,
+    "outputs": 1,
+    "class": "MonadicPervasive",
+    "description": "Take the part of a number that's cut off when rounding"
+  },
   "do": {
     "glyph": "⍢",
     "outputs": 1,
@@ -808,6 +815,13 @@
     "outputs": 1,
     "class": "Encoding",
     "description": "Encode an array of image frames in a GIF-encoded byte array"
+  },
+  "gniliec": {
+    "glyph": "⌉",
+    "args": 1,
+    "outputs": 1,
+    "class": "MonadicPervasive",
+    "description": "Take the part of a number that's cut off when taking the ceiling"
   },
   "graphemes": {
     "args": 1,
@@ -1322,6 +1336,13 @@
     "outputs": 1,
     "class": "MonadicArray",
     "description": "Get the indices into an array if it were sorted ascending"
+  },
+  "roolf": {
+    "glyph": "⌋",
+    "args": 1,
+    "outputs": 1,
+    "class": "MonadicPervasive",
+    "description": "Take the part of a number that's cut off when taking the floor"
   },
   "rotate": {
     "glyph": "↻",
