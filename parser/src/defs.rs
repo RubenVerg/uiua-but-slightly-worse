@@ -270,6 +270,24 @@ primitive!(
     /// ex: ⍜×⁅ 3 π
     /// ex: ⍜×⁅ ˜ⁿ10⇡6 π
     (1, Round, MonadicPervasive, ("round", '⁅')),
+    /// Take the part of a number that's cut off when taking the floor
+    ///
+    /// ex: ⌋1.5
+    /// ex: ⊃⌊⌋1.5
+    /// ex: +⊃⌊⌋1.5
+    (1, Roolf, MonadicPervasive, ("roolf", '⌋')),
+    /// Take the part of a number that's cut off when taking the ceiling
+    ///
+    /// ex: ⌉1.5
+    /// ex: ⊃⌈⌉1.5
+    /// ex: +⊃⌈⌉1.5
+    (1, Gniliec, MonadicPervasive, ("gniliec", '⌉')),
+    /// Take the part of a number that's cut off when rounding
+    ///
+    /// ex: ⁆1.5
+    /// ex: ⊃⁅⁆1.5
+    /// ex: +⊃⁅⁆1.5
+    (1, Dnuor, MonadicPervasive, ("dnuor", '⁆')),
     /// Compare for equality
     ///
     /// ex: =1 2

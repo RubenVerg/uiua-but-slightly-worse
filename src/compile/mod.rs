@@ -2203,6 +2203,27 @@ impl Compiler {
                     Node::Prim(Primitive::Not, spandex),
                 ])
             }
+            Primitive::Roolf => {
+                node = Node::from_iter([
+                    self.primitive(Primitive::Dup, span.clone()),
+                    self.primitive(Primitive::Floor, span.clone()),
+                    self.primitive(Primitive::Sub, span),
+                ])
+            }
+            Primitive::Gniliec => {
+                node = Node::from_iter([
+                    self.primitive(Primitive::Dup, span.clone()),
+                    self.primitive(Primitive::Ceil, span.clone()),
+                    self.primitive(Primitive::Sub, span),
+                ])
+            }
+            Primitive::Dnuor => {
+                node = Node::from_iter([
+                    self.primitive(Primitive::Dup, span.clone()),
+                    self.primitive(Primitive::Round, span.clone()),
+                    self.primitive(Primitive::Sub, span),
+                ])
+            }
             Primitive::Rank => {
                 node = Node::from_iter([
                     Node::Prim(Primitive::Shape, spandex),
@@ -2429,6 +2450,20 @@ impl Compiler {
                             self.primitive(Div, span),
                         ])
                     }
+                    Roolf | Gniliec | Dnuor => Node::from_iter([
+                        self.primitive(Dup, span.clone()),
+                        self.subscript_prim(
+                            match prim {
+                                Roolf => Floor,
+                                Gniliec => Ceil,
+                                Dnuor => Round,
+                                _ => unreachable!(),
+                            },
+                            span.clone(),
+                            scr,
+                        )?,
+                        self.primitive(Sub, span),
+                    ]),
                     Rand => Node::from_iter([
                         self.primitive(Rand, span.clone()),
                         Node::new_push(n),
