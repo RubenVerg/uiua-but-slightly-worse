@@ -21,11 +21,7 @@ use leptos::{
 
 use leptos_router::{use_navigate, BrowserIntegration, History, LocationChange, NavigateOptions};
 use uiua::{
-    format::{format_str, FormatConfig},
-    is_ident_char, lex,
-    lsp::{BindingDocs, BindingDocsKind},
-    now, seed_random, IgnoreError, PrimClass, PrimDoc, Primitive, Signature, Subscript, SysOp,
-    Token,
+    ast::Modifier, format::{format_str, FormatConfig}, is_ident_char, lex, lsp::{BindingDocs, BindingDocsKind}, now, seed_random, IgnoreError, PrimClass, PrimDoc, Primitive, Signature, Subscript, SysOp, Token
 };
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::{
@@ -2418,8 +2414,9 @@ fn prim_sig_class(prim: Primitive, subscript: Option<&Subscript>) -> &'static st
         }
         prim if prim.class() == PrimClass::Constant => code_font!("number-literal"),
         prim => {
-            if let Some(m) = prim.modifier_args() {
-                modifier_class(m)
+            if let Some(_) = prim.modifier_args() {
+                let modifier = Modifier::Primitive(prim);
+                modifier_class(subscript.and_then(|subscript| modifier.args_subscripted(subscript)).unwrap_or(modifier.args()))
             } else {
                 prim.subscript_sig(subscript)
                     .or(prim.sig())
